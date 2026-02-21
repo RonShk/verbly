@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47390662133",
+    "project_id": "vocab-forge-78557",
+    "storage_bucket": "vocab-forge-78557.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47390662133:android:c665862b6b671419b954bc",
+        "android_client_info": {
+          "package_name": "com.example.vocab_forge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVx0_6Rwct6wdye3hDU6SjnuPVJYxhhBM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
