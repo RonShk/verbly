@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
-import 'pages/assignments_page.dart';
 import 'pages/home_page.dart';
 import 'pages/profile_page.dart';
 import 'widgets/navbar.dart';
@@ -42,13 +41,6 @@ final _router = GoRouter(
           pageBuilder: (context, state) => NoTransitionPage(
             key: state.pageKey,
             child: const HomePage(),
-          ),
-        ),
-        GoRoute(
-          path: '/assignments',
-          pageBuilder: (context, state) => NoTransitionPage(
-            key: state.pageKey,
-            child: const AssignmentsPage(),
           ),
         ),
         GoRoute(
