@@ -1,72 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/home_page_data.dart';
+import '../providers/home_page_provider.dart';
 import '../theme/app_colors.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncData = ref.watch(homePageDataProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            _buildHeader(context),
-            SliverToBoxAdapter(child: _buildWeeklySummary(context)),
-            SliverToBoxAdapter(child: _buildSectionHeader(context)),
-            SliverList(
-              delegate: SliverChildListDelegate([
-                _AssignmentCard(
-                  type: 'VOCAB',
-                  title: 'Academic Lexicon Unit 5',
-                  teacher: 'Dr. Aris Thorne',
-                  due: 'Friday, 11:59 PM',
-                  progress: 8,
-                  total: 12,
-                  progressLabel: 'cards',
-                  buttonLabel: 'Continue Practice',
-                  onTap: () {},
-                ),
-                _AssignmentCard(
-                  type: 'READING VOCAB',
-                  title: 'Scientific Journal Excerpts',
-                  teacher: 'Prof. Elena Vance',
-                  due: 'Saturday, 11:59 PM',
-                  progress: 0,
-                  total: 5,
-                  progressLabel: 'passages',
-                  buttonLabel: 'Start Session',
-                  onTap: () {},
-                ),
-                _AssignmentCard(
-                  type: 'PRODUCTION',
-                  title: 'Essay: Climate Impact',
-                  teacher: 'Dr. Aris Thorne',
-                  due: 'Sunday, 11:59 PM',
-                  progress: 2,
-                  total: 3,
-                  progressLabel: 'sections',
-                  buttonLabel: 'Continue Writing',
-                  onTap: () {},
-                ),
-                _AssignmentCard(
-                  type: 'TRANSLATION',
-                  title: 'Legal Document Draft',
-                  teacher: 'Prof. Elena Vance',
-                  due: 'Monday, 9:00 AM',
-                  progress: 0,
-                  total: 1,
-                  progressLabel: 'documents',
-                  buttonLabel: 'Start Translation',
-                  onTap: () {},
-                ),
-              ]),
+        child: asyncData.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.blueHighlighted),
+          ),
+          error: (err, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Something went wrong',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    err.toString(),
+                    style: TextStyle(color: AppColors.navbarInactive, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => ref.invalidate(homePageDataProvider),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.button),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             ),
-            SliverToBoxAdapter(child: _buildCompletedSection(context)),
-          ],
+          ),
+          data: (data) => _buildContent(context, data),
         ),
       ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, HomePageData data) {
+    return CustomScrollView(
+      slivers: [
+        _buildHeader(context),
+        SliverToBoxAdapter(child: _buildWeeklySummary(context, data.weeklySummary)),
+        SliverToBoxAdapter(child: _buildSectionHeader(context, data.weekRange)),
+        SliverList(
+          delegate: SliverChildListDelegate(
+            data.assignments
+                .map((a) => _AssignmentCard(
+                      type: a.type,
+                      title: a.title,
+                      teacher: a.teacher,
+                      due: a.dueDate,
+                      progress: a.completedCount,
+                      total: a.total,
+                      progressLabel: a.progressLabel,
+                      buttonLabel: a.buttonLabel,
+                      onTap: () {},
+                    ))
+                .toList(),
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildCompletedSection(context, data.completed)),
+      ],
     );
   }
 
@@ -122,7 +132,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildWeeklySummary(BuildContext context) {
+  Widget _buildWeeklySummary(BuildContext context, WeeklySummary summary) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -152,7 +162,7 @@ class HomePage extends StatelessWidget {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '1/4',
+                    '${summary.remainingCount}/${summary.totalCount}',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -185,7 +195,7 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '92%',
+                '${summary.avgScore}%',
                 style: TextStyle(
                   color: AppColors.success,
                   fontSize: 24,
@@ -199,7 +209,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context) {
+  Widget _buildSectionHeader(BuildContext context, WeekRange weekRange) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
       child: Row(
@@ -217,7 +227,7 @@ class HomePage extends StatelessWidget {
             ),
           ),
           Text(
-            'Nov 13 - Nov 19',
+            weekRange.label ?? '${weekRange.start} - ${weekRange.end}',
             style: TextStyle(
               color: AppColors.blueHighlighted,
               fontSize: 12,
@@ -228,7 +238,8 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildCompletedSection(BuildContext context) {
+  Widget _buildCompletedSection(BuildContext context, List<HomeCompletion> completed) {
+    if (completed.isEmpty) return const SizedBox(height: 24);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -251,16 +262,11 @@ class HomePage extends StatelessWidget {
             ),
           ),
         ),
-        _CompletedItem(
-          title: 'Vocab: Medical Terms',
-          subtitle: 'Assigned by Dr. Aris Thorne • Completed Nov 12',
-          score: '98%',
-        ),
-        _CompletedItem(
-          title: 'Reading Vocab: Economic News',
-          subtitle: 'Assigned by Prof. Elena Vance • Completed Nov 11',
-          score: '85%',
-        ),
+        ...completed.map((c) => _CompletedItem(
+              title: c.assignmentTitle,
+              subtitle: c.subtitle ?? 'Assigned by ${c.teacherName} • Completed ${c.completedAt}',
+              score: '${c.score}%',
+            )),
         const SizedBox(height: 24),
       ],
     );
