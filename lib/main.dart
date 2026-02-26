@@ -1,10 +1,11 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'firebase_options.dart';
-import 'pages/assignments_page.dart';
 import 'pages/home_page.dart';
 import 'pages/profile_page.dart';
 import 'widgets/navbar.dart';
@@ -14,6 +15,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  if (kDebugMode) {
+    FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
+  }
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -42,13 +46,6 @@ final _router = GoRouter(
           pageBuilder: (context, state) => NoTransitionPage(
             key: state.pageKey,
             child: const HomePage(),
-          ),
-        ),
-        GoRoute(
-          path: '/assignments',
-          pageBuilder: (context, state) => NoTransitionPage(
-            key: state.pageKey,
-            child: const AssignmentsPage(),
           ),
         ),
         GoRoute(

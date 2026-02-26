@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Wraps the current route in a scaffold with a bottom nav bar (Home, Assignments, Profile).
+import '../theme/app_colors.dart';
+
+/// Wraps the current route in a scaffold with a bottom nav bar (Home, Profile).
 class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.currentPath, required this.child});
 
@@ -10,7 +12,6 @@ class MainShell extends StatelessWidget {
 
   static const _navItems = [
     (path: '/home', label: 'HOME', icon: Icons.home_outlined, iconSelected: Icons.home),
-    (path: '/assignments', label: 'ASSIGNMENTS', icon: Icons.assignment_outlined, iconSelected: Icons.assignment),
     (path: '/profile', label: 'PROFILE', icon: Icons.person_outline, iconSelected: Icons.person),
   ];
 
@@ -19,7 +20,7 @@ class MainShell extends StatelessWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
-        color: const Color(0xFF1C1C1E),
+        color: AppColors.navbarBackground,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -62,7 +63,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isSelected ? const Color(0xFF0A84FF) : const Color(0xFF8E8E93);
+    final color = isSelected ? AppColors.blueHighlighted : AppColors.navbarInactive;
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -74,6 +75,16 @@ class _NavItem extends StatelessWidget {
             label,
             style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500),
           ),
+          if (isSelected)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              height: 2,
+              width: 24,
+              decoration: const BoxDecoration(
+                color: AppColors.blueHighlighted,
+                borderRadius: BorderRadius.all(Radius.circular(1)),
+              ),
+            ),
         ],
       ),
     );
