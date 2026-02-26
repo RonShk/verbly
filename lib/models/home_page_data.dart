@@ -35,21 +35,18 @@ class WeeklySummary {
   const WeeklySummary({
     required this.remainingCount,
     required this.totalCount,
-    required this.avgScore,
   });
 
   final int remainingCount;
   final int totalCount;
-  final int avgScore;
 
   factory WeeklySummary.fromJson(dynamic json) {
     if (json == null || json is! Map) {
-      return const WeeklySummary(remainingCount: 0, totalCount: 0, avgScore: 0);
+      return const WeeklySummary(remainingCount: 0, totalCount: 0);
     }
     return WeeklySummary(
       remainingCount: (json['remainingCount'] as num?)?.toInt() ?? 0,
       totalCount: (json['totalCount'] as num?)?.toInt() ?? 0,
-      avgScore: (json['avgScore'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -81,23 +78,19 @@ class HomeAssignment {
   const HomeAssignment({
     required this.id,
     required this.type,
-    required this.title,
     required this.teacher,
     required this.dueDate,
-    required this.total,
-    required this.progressLabel,
-    required this.completedCount,
+    required this.totalQuestionCount,
+    required this.completedQuestionCount,
     required this.buttonLabel,
   });
 
   final String id;
   final String type;
-  final String title;
   final String teacher;
   final String dueDate;
-  final int total;
-  final String progressLabel;
-  final int completedCount;
+  final int totalQuestionCount;
+  final int completedQuestionCount;
   final String buttonLabel;
 
   factory HomeAssignment.fromJson(dynamic json) {
@@ -105,24 +98,20 @@ class HomeAssignment {
       return const HomeAssignment(
         id: '',
         type: '',
-        title: '',
         teacher: '',
         dueDate: '',
-        total: 0,
-        progressLabel: '',
-        completedCount: 0,
+        totalQuestionCount: 0,
+        completedQuestionCount: 0,
         buttonLabel: 'Start',
       );
     }
     return HomeAssignment(
       id: (json['id'] as String?) ?? '',
       type: (json['type'] as String?) ?? '',
-      title: (json['title'] as String?) ?? '',
       teacher: (json['teacher'] as String?) ?? '',
       dueDate: (json['dueDate'] as String?) ?? '',
-      total: (json['total'] as num?)?.toInt() ?? 0,
-      progressLabel: (json['progressLabel'] as String?) ?? '',
-      completedCount: (json['completedCount'] as num?)?.toInt() ?? 0,
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+      completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
       buttonLabel: (json['buttonLabel'] as String?) ?? 'Start',
     );
   }
@@ -130,36 +119,36 @@ class HomeAssignment {
 
 class HomeCompletion {
   const HomeCompletion({
-    required this.assignmentId,
-    required this.assignmentTitle,
-    required this.teacherName,
-    required this.score,
+    required this.type,
+    required this.teacher,
+    required this.dueDate,
+    required this.totalQuestionCount,
     required this.completedAt,
     this.subtitle,
   });
 
-  final String assignmentId;
-  final String assignmentTitle;
-  final String teacherName;
-  final int score;
+  final String type;
+  final String teacher;
+  final String dueDate;
+  final int totalQuestionCount;
   final String completedAt;
   final String? subtitle;
 
   factory HomeCompletion.fromJson(dynamic json) {
     if (json == null || json is! Map) {
       return const HomeCompletion(
-        assignmentId: '',
-        assignmentTitle: '',
-        teacherName: '',
-        score: 0,
+        type: '',
+        teacher: '',
+        dueDate: '',
+        totalQuestionCount: 0,
         completedAt: '',
       );
     }
     return HomeCompletion(
-      assignmentId: (json['assignmentId'] as String?) ?? '',
-      assignmentTitle: (json['assignmentTitle'] as String?) ?? '',
-      teacherName: (json['teacherName'] as String?) ?? '',
-      score: (json['score'] as num?)?.toInt() ?? 0,
+      type: (json['type'] as String?) ?? '',
+      teacher: (json['teacher'] as String?) ?? '',
+      dueDate: (json['dueDate'] as String?) ?? '',
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
       completedAt: (json['completedAt'] as String?) ?? '',
       subtitle: json['subtitle'] as String?,
     );

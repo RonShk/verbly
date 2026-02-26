@@ -27,66 +27,48 @@ async function runSeed(): Promise<void> {
   const { start: weekStart, end: weekEnd } = getWeekBounds();
   const userId = "demo_user";
 
-  const assignmentPayloads = [
-    { type: "VOCAB", title: "Academic Lexicon Unit 5", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), total: 12, progressLabel: "cards" },
-    { type: "READING VOCAB", title: "Scientific Journal Excerpts", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 1 * 24 * 60 * 60 * 1000)), total: 5, progressLabel: "passages" },
-    { type: "PRODUCTION", title: "Essay: Climate Impact", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), total: 3, progressLabel: "sections" },
-    { type: "TRANSLATION", title: "Legal Document Draft", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), total: 1, progressLabel: "documents" },
+  const todoPayloads = [
+    { userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, createdAt: Timestamp.now() },
+    { userId, type: "READING VOCAB", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 1 * 24 * 60 * 60 * 1000)), totalQuestionCount: 5, completedQuestionCount: 0, createdAt: Timestamp.now() },
+    { userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, createdAt: Timestamp.now() },
+    { userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, createdAt: Timestamp.now() },
   ];
 
-  const assignmentIds: string[] = [];
-  for (const data of assignmentPayloads) {
-    const ref = await db.collection("assignments").add(data);
-    assignmentIds.push(ref.id);
+  for (const data of todoPayloads) {
+    await db.collection("user_todo_assignments").add(data);
   }
 
-  await db.collection("user_progress").add({
-    userId,
-    assignmentId: assignmentIds[0],
-    completedCount: 8,
-    updatedAt: Timestamp.now(),
-  });
-  await db.collection("user_progress").add({
-    userId,
-    assignmentId: assignmentIds[2],
-    completedCount: 2,
-    updatedAt: Timestamp.now(),
-  });
-
   const completedAt1 = new Date(weekStart);
-  completedAt1.setUTCDate(completedAt1.getUTCDate() - 2);
+  completedAt1.setUTCDate(completedAt1.getUTCDate() + 1);
   const completedAt2 = new Date(weekStart);
-  completedAt2.setUTCDate(completedAt2.getUTCDate() - 3);
+  completedAt2.setUTCDate(completedAt2.getUTCDate() + 2);
 
-  const pastAssignmentPayloads = [
-    { type: "VOCAB", title: "Vocab: Medical Terms", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(completedAt1), total: 10, progressLabel: "cards" },
-    { type: "READING VOCAB", title: "Reading Vocab: Economic News", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(completedAt2), total: 5, progressLabel: "passages" },
-  ];
-  const pastRef1 = await db.collection("assignments").add(pastAssignmentPayloads[0]);
-  const pastRef2 = await db.collection("assignments").add(pastAssignmentPayloads[1]);
+  const dueDate1 = new Date(weekStart);
+  dueDate1.setUTCDate(dueDate1.getUTCDate() - 2);
+  const dueDate2 = new Date(weekStart);
+  dueDate2.setUTCDate(dueDate2.getUTCDate() - 1);
 
-  await db.collection("completions").add({
+  await db.collection("user_completed_assignments").add({
     userId,
-    assignmentId: pastRef1.id,
-    assignmentTitle: "Vocab: Medical Terms",
-    teacherName: "Dr. Aris Thorne",
-    score: 98,
+    type: "VOCAB",
+    teacher: "Dr. Aris Thorne",
+    dueDate: Timestamp.fromDate(dueDate1),
+    totalQuestionCount: 10,
     completedAt: Timestamp.fromDate(completedAt1),
   });
-  await db.collection("completions").add({
+  await db.collection("user_completed_assignments").add({
     userId,
-    assignmentId: pastRef2.id,
-    assignmentTitle: "Reading Vocab: Economic News",
-    teacherName: "Prof. Elena Vance",
-    score: 85,
+    type: "READING VOCAB",
+    teacher: "Prof. Elena Vance",
+    dueDate: Timestamp.fromDate(dueDate2),
+    totalQuestionCount: 5,
     completedAt: Timestamp.fromDate(completedAt2),
   });
 
-  console.log("Seed complete. Assignments:", assignmentIds.length + 2, "(4 this week + 2 completed)");
+  console.log("Seed complete. user_todo_assignments: 4, user_completed_assignments: 2");
 }
 
 runSeed().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

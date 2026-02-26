@@ -34,13 +34,15 @@ export const getHomePageData = functions.https.onCall(async (data) => {
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);
 
-  const [assignmentsSnap, progressSnap, completionsSnap] = await Promise.all([
-    db.collection("assignments")
-      .where("dueDate", ">=", weekStartTs) 
+  const [todoSnap, completedSnap] = await Promise.all([
+    db
+      .collection("user_todo_assignments")
+      .where("userId", "==", userId)
+      .where("dueDate", ">=", weekStartTs)
       .where("dueDate", "<=", weekEndTs)
       .get(),
-    db.collection("user_progress").where("userId", "==", userId).get(),
-    db.collection("completions")
+    db
+      .collection("user_completed_assignments")
       .where("userId", "==", userId)
       .where("completedAt", ">=", weekStartTs)
       .where("completedAt", "<=", weekEndTs)
@@ -48,83 +50,58 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       .get(),
   ]);
 
-  const progressByAssignmentId = new Map<string, number>();
-  progressSnap.docs.forEach((doc) => {
-    const d = doc.data();
-    const aid = d.assignmentId as string;
-    const count = (d.completedCount as number) ?? 0;
-    progressByAssignmentId.set(aid, count);
-  });
-
-  const completedAssignmentIds = new Set(
-    completionsSnap.docs.map((doc) => doc.data().assignmentId as string)
-  );
-
   const assignments: Array<{
     id: string;
     type: string;
-    title: string;
     teacher: string;
     dueDate: string;
-    total: number;
-    progressLabel: string;
-    completedCount: number;
+    totalQuestionCount: number;
+    completedQuestionCount: number;
     buttonLabel: string;
   }> = [];
-  let remainingCount = 0;
 
-  assignmentsSnap.docs.forEach((doc) => {
+  todoSnap.docs.forEach((doc) => {
     const d = doc.data();
-    const id = doc.id;
-    const total = (d.total as number) ?? 0;
-    const completedCount = progressByAssignmentId.get(id) ?? 0;
-    const isCompleted = completedAssignmentIds.has(id);
-    if (!isCompleted) remainingCount += 1;
-
     const dueDate = d.dueDate?.toDate?.() as Date | undefined;
     const dueLabel = dueDate
       ? dueDate.toLocaleDateString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" })
       : "";
-
+    const completedQuestionCount = (d.completedQuestionCount as number) ?? 0;
     assignments.push({
-      id,
+      id: doc.id,
       type: (d.type as string) ?? "",
-      title: (d.title as string) ?? "",
       teacher: (d.teacher as string) ?? "",
       dueDate: dueLabel,
-      total,
-      progressLabel: (d.progressLabel as string) ?? "",
-      completedCount,
-      buttonLabel: completedCount === 0 ? "Start" : "Continue",
+      totalQuestionCount: (d.totalQuestionCount as number) ?? 0,
+      completedQuestionCount,
+      buttonLabel: completedQuestionCount === 0 ? "Start" : "Continue",
     });
   });
 
-  const completed = completionsSnap.docs.map((doc) => {
+  const completed = completedSnap.docs.map((doc) => {
     const d = doc.data();
     const completedAt = d.completedAt?.toDate?.() as Date | undefined;
     const completedLabel = completedAt
       ? completedAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
       : "";
+    const dueDate = d.dueDate?.toDate?.() as Date | undefined;
+    const dueLabel = dueDate
+      ? dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : "";
+    const teacher = (d.teacher as string) ?? "";
     return {
-      assignmentId: d.assignmentId as string,
-      assignmentTitle: (d.assignmentTitle as string) ?? "",
-      teacherName: (d.teacherName as string) ?? "",
-      score: (d.score as number) ?? 0,
+      type: (d.type as string) ?? "",
+      teacher,
+      dueDate: dueLabel,
+      totalQuestionCount: (d.totalQuestionCount as number) ?? 0,
       completedAt: completedLabel,
-      subtitle: `Assigned by ${d.teacherName ?? ""} • Completed ${completedLabel}`,
+      subtitle: `Assigned by ${teacher} • Completed ${completedLabel}`,
     };
   });
 
-  let avgScore = 0;
-  if (completed.length > 0) {
-    const sum = completed.reduce((acc, c) => acc + c.score, 0);
-    avgScore = Math.round(sum / completed.length);
-  }
-
   const weeklySummary = {
-    remainingCount,
+    remainingCount: assignments.length,
     totalCount: assignments.length,
-    avgScore,
   };
 
   const weekRange = {

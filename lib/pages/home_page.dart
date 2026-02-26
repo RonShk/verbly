@@ -63,12 +63,10 @@ class HomePage extends ConsumerWidget {
             data.assignments
                 .map((a) => _AssignmentCard(
                       type: a.type,
-                      title: a.title,
                       teacher: a.teacher,
                       due: a.dueDate,
-                      progress: a.completedCount,
-                      total: a.total,
-                      progressLabel: a.progressLabel,
+                      completedQuestionCount: a.completedQuestionCount,
+                      totalQuestionCount: a.totalQuestionCount,
                       buttonLabel: a.buttonLabel,
                       onTap: () {},
                     ))
@@ -142,7 +140,6 @@ class HomePage extends ConsumerWidget {
         border: Border.all(color: AppColors.cardBorder, width: 1),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,29 +175,6 @@ class HomePage extends ConsumerWidget {
                     ),
                   ),
                 ],
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'AVG SCORE',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${summary.avgScore}%',
-                style: TextStyle(
-                  color: AppColors.success,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
               ),
             ],
           ),
@@ -263,9 +237,8 @@ class HomePage extends ConsumerWidget {
           ),
         ),
         ...completed.map((c) => _CompletedItem(
-              title: c.assignmentTitle,
-              subtitle: c.subtitle ?? 'Assigned by ${c.teacherName} • Completed ${c.completedAt}',
-              score: '${c.score}%',
+              title: c.type,
+              subtitle: c.subtitle ?? 'Assigned by ${c.teacher} • Completed ${c.completedAt}',
             )),
         const SizedBox(height: 24),
       ],
@@ -276,29 +249,25 @@ class HomePage extends ConsumerWidget {
 class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
     required this.type,
-    required this.title,
     required this.teacher,
     required this.due,
-    required this.progress,
-    required this.total,
-    required this.progressLabel,
+    required this.completedQuestionCount,
+    required this.totalQuestionCount,
     required this.buttonLabel,
     required this.onTap,
   });
 
   final String type;
-  final String title;
   final String teacher;
   final String due;
-  final int progress;
-  final int total;
-  final String progressLabel;
+  final int completedQuestionCount;
+  final int totalQuestionCount;
   final String buttonLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final progressFraction = total > 0 ? progress / total : 0.0;
+    final progressFraction = totalQuestionCount > 0 ? completedQuestionCount / totalQuestionCount : 0.0;
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       padding: const EdgeInsets.all(16),
@@ -310,22 +279,12 @@ class _AssignmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            type,
-            style: TextStyle(
-              color: AppColors.assignmentTypeAccent,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  type,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -376,7 +335,7 @@ class _AssignmentCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '$progress / $total $progressLabel',
+                '$completedQuestionCount / $totalQuestionCount questions',
                 style: TextStyle(
                   color: AppColors.navbarInactive,
                   fontSize: 12,
@@ -417,12 +376,10 @@ class _CompletedItem extends StatelessWidget {
   const _CompletedItem({
     required this.title,
     required this.subtitle,
-    required this.score,
   });
 
   final String title;
   final String subtitle;
-  final String score;
 
   @override
   Widget build(BuildContext context) {
@@ -469,14 +426,6 @@ class _CompletedItem extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                ),
-                Text(
-                  score,
-                  style: const TextStyle(
-                    color: AppColors.success,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
