@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'firebase_options.dart';
 import 'pages/home_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/vocab_session_page.dart';
 import 'widgets/navbar.dart';
 
 void main() async {
@@ -34,6 +35,16 @@ final _router = GoRouter(
     GoRoute(
       path: '/',
       redirect: (context, state) => '/home',
+    ),
+    GoRoute(
+      path: '/assignment/:id',
+      pageBuilder: (context, state) {
+        final id = state.pathParameters['id'] ?? '';
+        return NoTransitionPage(
+          key: state.pageKey,
+          child: VocabSessionPage(assignmentId: id),
+        );
+      },
     ),
     ShellRoute(
       builder: (context, state, child) => MainShell(

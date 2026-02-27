@@ -9,6 +9,15 @@
       ]
     },
     {
+      "collectionGroup": "user_todo_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "user_completed_assignments",
       "queryScope": "COLLECTION",
       "fields": [

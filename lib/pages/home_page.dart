@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../models/home_page_data.dart';
+import '../models/home_page_models.dart';
 import '../providers/home_page_provider.dart';
 import '../theme/app_colors.dart';
 
@@ -68,7 +69,7 @@ class HomePage extends ConsumerWidget {
                       completedQuestionCount: a.completedQuestionCount,
                       totalQuestionCount: a.totalQuestionCount,
                       buttonLabel: a.buttonLabel,
-                      onTap: () {},
+                      onTap: () => context.go('/assignment/${a.id}'),
                     ))
                 .toList(),
           ),
@@ -159,7 +160,7 @@ class HomePage extends ConsumerWidget {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '${summary.remainingCount}/${summary.totalCount}',
+                    '${summary.remainingCount}',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
