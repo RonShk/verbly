@@ -8,6 +8,9 @@ class AppColors {
   static const Color button = Color(0xFF135BEC);
   static const Color cardBackground = Color(0xFF0F172A);
   static const Color cardBorder = Color(0xFF1E293B);
+
+  /// Vocab practice card background (slightly lighter than cardBackground).
+  static const Color vocabCardBackground = Color(0xFF1E293B);
   static const Color navbarBackground = Color(0xFF0F172A);
   static const Color blueHighlighted = Color(0xFF135BEC);
   static const Color completedTabsBackground = Color(0xFF101622);
@@ -21,4 +24,13 @@ class AppColors {
 
   /// Accent for assignment type labels (e.g. VOCAB, READING VOCAB).
   static const Color assignmentTypeAccent = Color(0xFFE07C5A);
+
+  /// Soft red for "don't know" actions.
+  static const Color danger = Color(0xFFFF453A);
+
+  /// Muted red background tint for "don't know" buttons.
+  static const Color dangerSurface = Color(0xFF2A1519);
+
+  /// Muted green background tint for "I know" buttons.
+  static const Color successSurface = Color(0xFF132A1B);
 }

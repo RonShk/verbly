@@ -8,3 +8,5 @@ setGlobalOptions({ maxInstances: 10 });
 
 // Export all functions from their respective modules.
 export { getHomePageData } from "./home/getHomePageData";
+export { getVocabSession } from "./assignments/vocab/getVocabSession";
+export { recordVocabResponse } from "./assignments/vocab/recordVocabResponse";

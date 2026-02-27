@@ -1,6 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
-import '../models/home_page_data.dart';
+import '../models/home_page_models.dart';
 
 /// Calls the getHomePageData callable and returns parsed HomePageData.
 Future<HomePageData> getHomePageData({required String userId}) async {
