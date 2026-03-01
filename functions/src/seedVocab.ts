@@ -48,13 +48,23 @@ const SPANISH_VOCAB_WORDS: Array<{ learningLanguageWord: string; englishWord: st
   { learningLanguageWord: "tiempo", englishWord: "time" },
 ];
 
+/** Fisher–Yates shuffle (returns a new array). */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 async function runSeedVocab(): Promise<void> {
   const { start: weekStart, end: weekEnd } = getWeekBounds();
   const userId = "demo_user";
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);
 
-  // 1. One vocab_lists document per user (auto-generated ID)
+  // 1. Create the vocab_lists doc (source word pairs)
   const vocabListRef = await db.collection("vocab_lists").add({
     userId,
     learningLanguage: "es",
@@ -67,7 +77,27 @@ async function runSeedVocab(): Promise<void> {
   const totalQuestionCount = SPANISH_VOCAB_WORDS.length;
   console.log("Created vocab_lists doc:", vocabListId, "with", totalQuestionCount, "words");
 
-  // 2. Find existing VOCAB assignment for this user in this week, or create one
+  // 2. Pre-shuffle words once and store in vocab_question_sets
+  const shuffled = shuffle(SPANISH_VOCAB_WORDS);
+  const questions = shuffled.map((w, i) => ({
+    index: i,
+    learningLanguageWord: w.learningLanguageWord,
+    englishWord: w.englishWord,
+  }));
+
+  const questionSetRef = await db.collection("vocab_question_sets").add({
+    userId,
+    vocabListId,
+    learningLanguage: "es",
+    weekStart: weekStartTs,
+    questions,
+    createdAt: Timestamp.now(),
+  });
+
+  const questionSetId = questionSetRef.id;
+  console.log("Created vocab_question_sets doc:", questionSetId);
+
+  // 3. Find existing VOCAB assignment for this user/week, or create one
   const todoSnap = await db
     .collection("user_todo_assignments")
     .where("userId", "==", userId)
@@ -84,10 +114,10 @@ async function runSeedVocab(): Promise<void> {
     const doc = todoSnap.docs[0];
     await doc.ref.update({
       vocabListId,
+      questionSetId,
       totalQuestionCount,
-      // Keep existing completedQuestionCount; if you want to reset progress, set completedQuestionCount: 0
     });
-    console.log("Updated existing VOCAB assignment:", doc.id, "with vocabListId:", vocabListId);
+    console.log("Updated existing VOCAB assignment:", doc.id);
   } else {
     const newAssignmentRef = await db.collection("user_todo_assignments").add({
       userId,
@@ -97,12 +127,13 @@ async function runSeedVocab(): Promise<void> {
       totalQuestionCount,
       completedQuestionCount: 0,
       vocabListId,
+      questionSetId,
       createdAt: Timestamp.now(),
     });
-    console.log("Created new VOCAB assignment:", newAssignmentRef.id, "with vocabListId:", vocabListId);
+    console.log("Created new VOCAB assignment:", newAssignmentRef.id);
   }
 
-  console.log("Seed vocab complete. vocab_lists: 1 doc, VOCAB assignment linked.");
+  console.log("Seed vocab complete. vocab_lists: 1, vocab_question_sets: 1, assignment linked.");
 }
 
 runSeedVocab().catch((e) => {

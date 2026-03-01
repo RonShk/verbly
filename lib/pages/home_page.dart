@@ -69,7 +69,7 @@ class HomePage extends ConsumerWidget {
                       completedQuestionCount: a.completedQuestionCount,
                       totalQuestionCount: a.totalQuestionCount,
                       buttonLabel: a.buttonLabel,
-                      onTap: () => context.go('/assignment/${a.id}'),
+                      onTap: () => context.go('/assignment/${a.type.toLowerCase().replaceAll(' ', '_')}/${a.id}'),
                     ))
                 .toList(),
           ),
