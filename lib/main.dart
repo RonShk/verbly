@@ -37,12 +37,17 @@ final _router = GoRouter(
       redirect: (context, state) => '/home',
     ),
     GoRoute(
-      path: '/assignment/:id',
+      path: '/assignment/:type/:id',
       pageBuilder: (context, state) {
         final id = state.pathParameters['id'] ?? '';
+        final type = state.pathParameters['type'] ?? '';
+        final Widget page = switch (type) {
+          'vocab' => VocabSessionPage(assignmentId: id),
+          _ => VocabSessionPage(assignmentId: id),
+        };
         return NoTransitionPage(
           key: state.pageKey,
-          child: VocabSessionPage(assignmentId: id),
+          child: page,
         );
       },
     ),

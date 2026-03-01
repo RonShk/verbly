@@ -271,7 +271,8 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               userId: demoUserId,
               questionIndex: currentCardIndex,
             );
-            if (result.assignmentCompleted && mounted) {
+            if (!context.mounted) return;
+            if (result.assignmentCompleted) {
               context.go('/home');
               return;
             }

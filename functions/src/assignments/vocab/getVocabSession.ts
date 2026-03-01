@@ -3,15 +3,6 @@ import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
-/** Shuffle array in place (Fisher–Yates) and return it. */
-function shuffle<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 export const getVocabSession = functions.https.onCall(async (data) => {
   const assignmentId = data?.assignmentId;
   const userId = data?.userId;
@@ -55,36 +46,34 @@ export const getVocabSession = functions.https.onCall(async (data) => {
     );
   }
 
-  const vocabListId = assignment.vocabListId as string | undefined;
-  if (!vocabListId) {
+  const questionSetId = assignment.questionSetId as string | undefined;
+  if (!questionSetId) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      "Assignment has no linked vocab list."
+      "Assignment has no linked question set. Re-seed data to fix."
     );
   }
 
-  const vocabSnap = await db.collection("vocab_lists").doc(vocabListId).get();
-  if (!vocabSnap.exists) {
+  const questionSetSnap = await db
+    .collection("vocab_question_sets")
+    .doc(questionSetId)
+    .get();
+
+  if (!questionSetSnap.exists) {
     throw new functions.https.HttpsError(
       "not-found",
-      "Vocab list not found."
+      "Vocab question set not found."
     );
   }
 
-  const vocab = vocabSnap.data()!;
-  const words = (vocab.words as Array<{ learningLanguageWord: string; englishWord: string }>) || [];
-  const totalQuestionCount = Math.min(
-    (assignment.totalQuestionCount as number) ?? words.length,
-    words.length
-  );
+  const questionSet = questionSetSnap.data()!;
+  const questions = (questionSet.questions as Array<{
+    index: number;
+    learningLanguageWord: string;
+    englishWord: string;
+  }>) || [];
 
-  const shuffled = shuffle([...words]).slice(0, totalQuestionCount);
-  const questions = shuffled.map((w, i) => ({
-    index: i,
-    learningLanguageWord: w.learningLanguageWord,
-    englishWord: w.englishWord,
-  }));
-
+  const totalQuestionCount = (assignment.totalQuestionCount as number) ?? questions.length;
   const completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
   const teacher = (assignment.teacher as string) ?? "";
 

@@ -28,10 +28,10 @@ async function runSeed(): Promise<void> {
   const userId = "demo_user";
 
   const todoPayloads = [
-    { userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, createdAt: Timestamp.now() },
-    { userId, type: "READING VOCAB", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 1 * 24 * 60 * 60 * 1000)), totalQuestionCount: 5, completedQuestionCount: 0, createdAt: Timestamp.now() },
-    { userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, createdAt: Timestamp.now() },
-    { userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, createdAt: Timestamp.now() },
+    { userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
+    { userId, type: "READING_VOCAB", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 1 * 24 * 60 * 60 * 1000)), totalQuestionCount: 5, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
+    { userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
+    { userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
   ];
 
   for (const data of todoPayloads) {
@@ -58,7 +58,7 @@ async function runSeed(): Promise<void> {
   });
   await db.collection("user_completed_assignments").add({
     userId,
-    type: "READING VOCAB",
+    type: "READING_VOCAB",
     teacher: "Prof. Elena Vance",
     dueDate: Timestamp.fromDate(dueDate2),
     totalQuestionCount: 5,
