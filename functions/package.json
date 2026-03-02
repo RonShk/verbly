@@ -2,7 +2,8 @@
   "name": "functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seedVocab.ts",
+    "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedVocab.ts",
+    "seed:reading-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedReadingVocab.ts",
     "test:gemini": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/ai/testGemini.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
@@ -20,7 +21,7 @@
     "@google/genai": "^1.43.0",
     "dotenv": "^17.3.1",
     "firebase-admin": "^13.6.1",
-    "firebase-functions": "^7.0.0",
+    "firebase-functions": "^7.0.6",
     "zod": "^4.3.6"
   },
   "devDependencies": {

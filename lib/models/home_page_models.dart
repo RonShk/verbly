@@ -16,17 +16,12 @@ class HomePageData {
     if (json is! Map) {
       throw Exception('HomePageData expected a Map, got ${json.runtimeType}');
     }
+
     return HomePageData(
       weeklySummary: WeeklySummary.fromJson(json['weeklySummary'] ?? {}),
       weekRange: WeekRange.fromJson(json['weekRange'] ?? {}),
-      assignments: (json['assignments'] as List?)
-              ?.map((e) => HomeAssignment.fromJson(e))
-              .toList() ??
-          [],
-      completed: (json['completed'] as List?)
-              ?.map((e) => HomeCompletion.fromJson(e))
-              .toList() ??
-          [],
+      assignments: (json['assignments'] as List?)?.map((e) => HomeAssignment.fromJson(e)).toList() ?? [],
+      completed: (json['completed'] as List?)?.map((e) => HomeCompletion.fromJson(e)).toList() ?? []
     );
   }
 }
@@ -46,7 +41,7 @@ class WeeklySummary {
     }
     return WeeklySummary(
       remainingCount: (json['remainingCount'] as num?)?.toInt() ?? 0,
-      totalCount: (json['totalCount'] as num?)?.toInt() ?? 0,
+      totalCount: (json['totalCount'] as num?)?.toInt() ?? 0
     );
   }
 }

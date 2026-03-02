@@ -29,12 +29,8 @@ class VocabSessionData {
       assignmentTitle: (json['assignmentTitle'] as String?) ?? '',
       teacher: (json['teacher'] as String?) ?? '',
       totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
-      completedQuestionCount:
-          (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
-      questions: (json['questions'] as List?)
-              ?.map((e) => VocabQuestion.fromJson(e))
-              .toList() ??
-          [],
+      completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
+      questions: (json['questions'] as List?)?.map((e) => VocabQuestion.fromJson(e)).toList() ?? []
     );
   }
 }
@@ -54,11 +50,11 @@ class VocabQuestion {
     if (json is! Map) {
       throw Exception('VocabQuestion expected a Map, got ${json.runtimeType}');
     }
+
     return VocabQuestion(
       index: (json['index'] as num?)?.toInt() ?? 0,
-      learningLanguageWord:
-          (json['learningLanguageWord'] as String?) ?? '',
-      englishWord: (json['englishWord'] as String?) ?? '',
+      learningLanguageWord: (json['learningLanguageWord'] as String?) ?? '',
+      englishWord: (json['englishWord'] as String?) ?? ''
     );
   }
 }
