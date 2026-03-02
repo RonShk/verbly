@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import { getWeekBounds } from "../utils/getWeekBounds";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({
@@ -9,19 +10,6 @@ if (admin.apps.length === 0) {
 
 const db = admin.firestore();
 const Timestamp = admin.firestore.Timestamp;
-
-function getWeekBounds(): { start: Date; end: Date } {
-  const now = new Date();
-  const day = now.getUTCDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = new Date(now);
-  start.setUTCDate(now.getUTCDate() + mondayOffset);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
-  end.setUTCHours(23, 59, 59, 999);
-  return { start, end };
-}
 
 async function runSeed(): Promise<void> {
   const { start: weekStart, end: weekEnd } = getWeekBounds();

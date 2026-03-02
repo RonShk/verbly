@@ -5,10 +5,15 @@ import '../models/home_page_models.dart';
 /// Calls the getHomePageData callable and returns parsed HomePageData.
 Future<HomePageData> getHomePageData({required String userId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getHomePageData');
-  final result = await callable.call({'userId': userId});
+  final result = await callable.call({
+    'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+  });
+
   final data = result.data;
   if (data is! Map) {
     throw Exception('getHomePageData returned unexpected type: ${data.runtimeType}');
   }
+  
   return HomePageData.fromJson(data);
 }

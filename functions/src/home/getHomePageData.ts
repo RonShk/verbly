@@ -1,23 +1,22 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
+import { getWeekBounds } from "../utils/getWeekBounds";
 
-function getWeekBounds(): { start: Date; end: Date } {
-  const now = new Date();
-  const day = now.getUTCDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = new Date(now);
-  start.setUTCDate(now.getUTCDate() + mondayOffset);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
-  end.setUTCHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-function formatWeekRangeLabel(start: Date, end: Date): string {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  return `${start.toLocaleDateString("en-US", opts)} - ${end.toLocaleDateString("en-US", opts)}`;
+function formatWeekRangeLabel(
+  start: Date,
+  end: Date,
+  utcOffsetMinutes: number
+): string {
+  const offsetMs = utcOffsetMinutes * 60_000;
+  const localStart = new Date(start.getTime() + offsetMs);
+  const localEnd = new Date(end.getTime() + offsetMs);
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  };
+  return `${localStart.toLocaleDateString("en-US", opts)} - ${localEnd.toLocaleDateString("en-US", opts)}`;
 }
 
 export const getHomePageData = functions.https.onCall(async (data) => {
@@ -29,8 +28,13 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     );
   }
 
+  const utcOffsetMinutes =
+    typeof data?.timezoneOffsetMinutes === "number"
+      ? data.timezoneOffsetMinutes
+      : -(new Date().getTimezoneOffset());
+
   const db = admin.firestore();
-  const { start: weekStart, end: weekEnd } = getWeekBounds();
+  const { start: weekStart, end: weekEnd } = getWeekBounds(utcOffsetMinutes);
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);
 
@@ -104,10 +108,11 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     totalCount: assignments.length,
   };
 
+  const offsetMs = utcOffsetMinutes * 60_000;
   const weekRange = {
-    start: weekStart.toISOString().slice(0, 10),
-    end: weekEnd.toISOString().slice(0, 10),
-    label: formatWeekRangeLabel(weekStart, weekEnd),
+    start: new Date(weekStart.getTime() + offsetMs).toISOString().slice(0, 10),
+    end: new Date(weekEnd.getTime() + offsetMs).toISOString().slice(0, 10),
+    label: formatWeekRangeLabel(weekStart, weekEnd, utcOffsetMinutes),
   };
 
   return {
