@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'firebase_options.dart';
 import 'pages/home_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/production_session_page.dart';
 import 'pages/reading_vocab_session_page.dart';
 import 'pages/vocab_session_page.dart';
 import 'widgets/navbar.dart';
@@ -44,6 +45,7 @@ final _router = GoRouter(
         final type = state.pathParameters['type'] ?? '';
         final Widget page = switch (type) {
           'vocab' => VocabSessionPage(assignmentId: id),
+          'production' => ProductionSessionPage(assignmentId: id),
           'reading_vocab' => ReadingVocabSessionPage(assignmentId: id),
           _ => VocabSessionPage(assignmentId: id),
         };

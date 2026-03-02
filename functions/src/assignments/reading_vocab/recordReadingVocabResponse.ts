@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
+import { updateAssignmentProgress } from "../../utils/assignmentProgress";
 
 const db = admin.firestore();
 
@@ -51,26 +51,17 @@ export const recordReadingVocabResponse = functions.https.onCall(
       totalQuestionCount
     );
 
-    const assignmentCompleted = completedQuestionCount >= totalQuestionCount;
-
-    if (assignmentCompleted) {
-      const dueDate = assignment.dueDate;
-      const type = assignment.type;
-      const teacher = assignment.teacher;
-      await db.runTransaction(async (tx) => {
-        tx.set(db.collection("user_completed_assignments").doc(), {
-          userId,
-          type,
-          teacher,
-          dueDate,
-          totalQuestionCount,
-          completedAt: Timestamp.now(),
-        });
-        tx.delete(assignmentRef);
-      });
-    } else {
-      await assignmentRef.update({ completedQuestionCount });
-    }
+    const { assignmentCompleted } = await updateAssignmentProgress(
+      assignmentRef,
+      {
+        dueDate: assignment.dueDate,
+        type: assignment.type as string,
+        teacher: assignment.teacher as string,
+        totalQuestionCount,
+      },
+      userId,
+      completedQuestionCount
+    );
 
     return {
       completedQuestionCount,

@@ -4,6 +4,7 @@
     "lint": "eslint --ext .js,.ts .",
     "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedVocab.ts",
     "seed:reading-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedReadingVocab.ts",
+    "seed:production": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedProduction.ts",
     "test:gemini": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/ai/testGemini.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
