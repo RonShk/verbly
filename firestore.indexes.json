@@ -3,10 +3,7 @@
     {
       "collectionGroup": "user_todo_assignments",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "dueDate", "order": "ASCENDING" }
-      ]
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "dueDate", "order": "ASCENDING" } ]
     },
     {
       "collectionGroup": "user_todo_assignments",
@@ -20,19 +17,20 @@
     {
       "collectionGroup": "user_completed_assignments",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "completedAt", "order": "DESCENDING" }
-      ]
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "completedAt", "order": "DESCENDING" } ]
     },
     {
       "collectionGroup": "vocab_question_sets",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "weekStart", "order": "ASCENDING" }
-      ]
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "weekStart", "order": "ASCENDING" } ]
+    },
+    {
+      "collectionGroup": "translation_question_sets",
+      "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "weekStart", "order": "ASCENDING" } ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    
+  ]
 }

@@ -19,3 +19,7 @@ export { recordReadingVocabResponse } from "./assignments/reading_vocab/recordRe
 export { generateProductionQuestions } from "./assignments/production/generateProductionQuestions";
 export { getProductionSession } from "./assignments/production/getProductionSession";
 export { evaluateProductionResponse } from "./assignments/production/evaluateProductionResponse";
+
+export { generateTranslationQuestions } from "./assignments/translation/generateTranslationQuestions";
+export { getTranslationSession } from "./assignments/translation/getTranslationSession";
+export { evaluateTranslationResponse } from "./assignments/translation/evaluateTranslationResponse";
