@@ -5,26 +5,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
-import '../models/production_session_models.dart';
-import '../providers/production_session_provider.dart';
-import '../services/production_session_api_calls.dart';
+import '../models/translation_session_models.dart';
+import '../providers/translation_session_provider.dart';
+import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
-class ProductionSessionPage extends ConsumerStatefulWidget {
-  const ProductionSessionPage({super.key, required this.assignmentId});
+class TranslationSessionPage extends ConsumerStatefulWidget {
+  const TranslationSessionPage({super.key, required this.assignmentId});
 
   final String assignmentId;
 
   @override
-  ConsumerState<ProductionSessionPage> createState() =>
-      _ProductionSessionPageState();
+  ConsumerState<TranslationSessionPage> createState() =>
+      _TranslationSessionPageState();
 }
 
-class _ProductionSessionPageState
-    extends ConsumerState<ProductionSessionPage> {
+class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage> {
   final _answerController = TextEditingController();
   bool _isSubmitting = false;
-  ProductionEvaluationResult? _evaluationResult;
+  TranslationEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
 
   @override
@@ -36,7 +35,7 @@ class _ProductionSessionPageState
   @override
   Widget build(BuildContext context) {
     final sessionAsync =
-        ref.watch(productionSessionProvider(widget.assignmentId));
+        ref.watch(translationSessionProvider(widget.assignmentId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -67,7 +66,7 @@ class _ProductionSessionPageState
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () => ref.invalidate(
-                        productionSessionProvider(widget.assignmentId)),
+                        translationSessionProvider(widget.assignmentId)),
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -137,13 +136,13 @@ class _ProductionSessionPageState
   }
 
   // ---------------------------------------------------------------------------
-  // QUESTION VIEW (left screen in design)
+  // QUESTION VIEW (Spanish sentence → user types English)
   // ---------------------------------------------------------------------------
 
   Widget _buildQuestionView(
     BuildContext context,
-    ProductionSessionData session,
-    ProductionQuestion q,
+    TranslationSessionData session,
+    TranslationQuestion q,
     int currentCardIndex,
     int total,
   ) {
@@ -151,7 +150,8 @@ class _ProductionSessionPageState
 
     return Column(
       children: [
-        _buildQuestionHeader(context, session.assignmentTitle, displayIndex, total),
+        _buildQuestionHeader(
+            context, session.assignmentTitle, displayIndex, total),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -204,7 +204,7 @@ class _ProductionSessionPageState
                 child: Column(
                   children: [
                     const Text(
-                      'PRODUCTION MODE',
+                      'TRANSLATION MODE',
                       style: TextStyle(
                         color: AppColors.blueHighlighted,
                         fontSize: 11,
@@ -263,7 +263,7 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildPromptCard(ProductionQuestion q) {
+  Widget _buildPromptCard(TranslationQuestion q) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -277,7 +277,7 @@ class _ProductionSessionPageState
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                'TRANSLATE TO SPANISH',
+                'TRANSLATE TO ENGLISH',
                 style: TextStyle(
                   color: AppColors.blueHighlighted,
                   fontSize: 11,
@@ -289,7 +289,7 @@ class _ProductionSessionPageState
           ),
           const SizedBox(height: 16),
           Text(
-            q.sentenceInNativeLanguage,
+            q.sentenceInLearningLanguage,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -347,7 +347,7 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildSubmitButton(int currentCardIndex, ProductionQuestion q) {
+  Widget _buildSubmitButton(int currentCardIndex, TranslationQuestion q) {
     final hasText = _answerController.text.trim().isNotEmpty;
     return SizedBox(
       width: double.infinity,
@@ -410,7 +410,7 @@ class _ProductionSessionPageState
     setState(() => _isSubmitting = true);
 
     try {
-      final result = await evaluateProductionResponse(
+      final result = await evaluateTranslationResponse(
         assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
@@ -441,7 +441,7 @@ class _ProductionSessionPageState
     setState(() => _isSubmitting = true);
 
     try {
-      final result = await evaluateProductionResponse(
+      final result = await evaluateTranslationResponse(
         assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
@@ -455,7 +455,7 @@ class _ProductionSessionPageState
         return;
       }
 
-      ref.invalidate(productionSessionProvider(widget.assignmentId));
+      ref.invalidate(translationSessionProvider(widget.assignmentId));
       _resetState();
     } catch (e) {
       if (!mounted) return;
@@ -480,13 +480,13 @@ class _ProductionSessionPageState
   }
 
   // ---------------------------------------------------------------------------
-  // FEEDBACK VIEW (right screen in design)
+  // FEEDBACK VIEW (same as production: score, your response, corrected, explanation)
   // ---------------------------------------------------------------------------
 
   Widget _buildFeedbackView(
     BuildContext context,
-    ProductionQuestion q,
-    ProductionEvaluationResult result,
+    TranslationQuestion q,
+    TranslationEvaluationResult result,
     String submittedAnswer,
     int currentCardIndex,
     int total,
@@ -614,9 +614,9 @@ class _ProductionSessionPageState
   }
 
   String _feedbackSubtitle(int score) {
-    if (score >= 90) return 'Your grammatical accuracy is excellent.';
-    if (score >= 70) return 'Your grammatical accuracy is improving.';
-    if (score >= 50) return 'Keep working on your sentence structure.';
+    if (score >= 90) return 'Your translation accuracy is excellent.';
+    if (score >= 70) return 'Your translation accuracy is improving.';
+    if (score >= 50) return 'Keep working on meaning and word choice.';
     return 'Review the corrections and try again next time.';
   }
 
@@ -656,10 +656,11 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildCorrectedSection(ProductionEvaluationResult result) {
+  Widget _buildCorrectedSection(TranslationEvaluationResult result) {
     final segments = result.correctedVersionSegments;
-    final hasHighlights =
-        segments != null && segments.isNotEmpty && segments.any((s) => s.highlight != 'none');
+    final hasHighlights = segments != null &&
+        segments.isNotEmpty &&
+        segments.any((s) => s.highlight != 'none');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -751,7 +752,8 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildExplanationSection(List<ProductionExplanation> explanations) {
+  Widget _buildExplanationSection(
+      List<TranslationExplanation> explanations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -830,7 +832,7 @@ class _ProductionSessionPageState
 
   Widget _buildFeedbackBottomBar(
     BuildContext context,
-    ProductionEvaluationResult result,
+    TranslationEvaluationResult result,
     int currentCardIndex,
   ) {
     return Padding(
@@ -843,7 +845,7 @@ class _ProductionSessionPageState
               context.go('/home');
               return;
             }
-            ref.invalidate(productionSessionProvider(widget.assignmentId));
+            ref.invalidate(translationSessionProvider(widget.assignmentId));
             _resetState();
           },
           style: FilledButton.styleFrom(
