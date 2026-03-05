@@ -23,3 +23,5 @@ export { evaluateProductionResponse } from "./assignments/production/evaluatePro
 export { generateTranslationQuestions } from "./assignments/translation/generateTranslationQuestions";
 export { getTranslationSession } from "./assignments/translation/getTranslationSession";
 export { evaluateTranslationResponse } from "./assignments/translation/evaluateTranslationResponse";
+
+export { createVocabListForWeek } from "./teacher/createVocabListForWeek";
