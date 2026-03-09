@@ -62,6 +62,7 @@ export const addVocabWords = functions.https.onCall(async (data) => {
     });
 
     const now = new Date();
+    const nowTs = Timestamp.now();
     const baseCardFields = emptyVocabCardFields(now, Timestamp);
     for (const w of validWords) {
       await db.collection("vocab_cards").add({
@@ -70,7 +71,12 @@ export const addVocabWords = functions.https.onCall(async (data) => {
         vocabListId: ref.id,
         learningLanguageWord: w.learningLanguageWord,
         englishWord: w.englishWord,
-        createdAt: Timestamp.now(),
+        createdAt: nowTs,
+        firstLearnedAt: null,
+        lastFailureAt: null,
+        againCount: 0,
+        hardTag: false,
+        leechTag: false,
       });
     }
 
@@ -106,6 +112,7 @@ export const addVocabWords = functions.https.onCall(async (data) => {
     });
 
     const now = new Date();
+    const nowTs = Timestamp.now();
     const baseCardFields = emptyVocabCardFields(now, Timestamp);
     for (const w of newWords) {
       await db.collection("vocab_cards").add({
@@ -114,7 +121,12 @@ export const addVocabWords = functions.https.onCall(async (data) => {
         vocabListId: doc.id,
         learningLanguageWord: w.learningLanguageWord,
         englishWord: w.englishWord,
-        createdAt: Timestamp.now(),
+        createdAt: nowTs,
+        firstLearnedAt: null,
+        lastFailureAt: null,
+        againCount: 0,
+        hardTag: false,
+        leechTag: false,
       });
     }
   }

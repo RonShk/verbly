@@ -75,7 +75,38 @@ export const recordVocabResponse = functions.https.onCall(async (data) => {
   const { card: nextCard } = f.next(card, now, grade as Grade);
 
   const update = cardToUpdate(nextCard, Timestamp);
-  await cardRef.update(update);
+
+  // Update lightweight per-word stats directly on the vocab_cards doc.
+  const raw = cardData as unknown as Record<string, unknown>;
+  const prevAgainCount = (raw.againCount as number | undefined) ?? 0;
+  const statsUpdate: Record<string, unknown> = {};
+
+  // First time the user sees this card: set firstLearnedAt (distinct from createdAt).
+  if (raw.firstLearnedAt == null) {
+    statsUpdate.firstLearnedAt = Timestamp.fromDate(now);
+  }
+
+  // Treat ratings 1 (Again) and 2 (Hard) as "failures" for scheduling purposes.
+  if (rating <= 2) {
+    const newAgainCount = prevAgainCount + 1;
+    (statsUpdate as any).lastFailureAt = Timestamp.fromDate(now);
+    (statsUpdate as any).againCount = newAgainCount;
+
+    // Mark as "hard" after a few failures so we can prioritize in scheduling.
+    if (newAgainCount >= 2) {
+      (statsUpdate as any).hardTag = true;
+    }
+
+    // Simple heuristic: automatically mark as leech after several failures.
+    if (newAgainCount >= 5) {
+      (statsUpdate as any).leechTag = true;
+    }
+  }
+
+  await cardRef.update({
+    ...update,
+    ...statsUpdate,
+  });
 
   const total = typeof totalQuestionCount === "number" ? totalQuestionCount : 0;
   const completed = (typeof completedQuestionCount === "number" ? completedQuestionCount : 0) + 1;
