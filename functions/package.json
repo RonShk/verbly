@@ -3,7 +3,6 @@
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
     "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedVocab.ts",
-    "seed:reading-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedReadingVocab.ts",
     "seed:production": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedProduction.ts",
     "seed:translation": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedTranslation.ts",
     "seed:all-from-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedAllFromVocabList.ts",

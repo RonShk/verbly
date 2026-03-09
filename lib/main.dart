@@ -9,7 +9,6 @@ import 'firebase_options.dart';
 import 'pages/home_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/production_session_page.dart';
-import 'pages/reading_vocab_session_page.dart';
 import 'pages/translation_session_page.dart';
 import 'pages/vocab_session_page.dart';
 import 'widgets/navbar.dart';
@@ -48,7 +47,6 @@ final _router = GoRouter(
           'vocab' => VocabSessionPage(assignmentId: id),
           'translation' => TranslationSessionPage(assignmentId: id),
           'production' => ProductionSessionPage(assignmentId: id),
-          'reading_vocab' => ReadingVocabSessionPage(assignmentId: id),
           _ => VocabSessionPage(assignmentId: id),
         };
         return NoTransitionPage(

@@ -100,7 +100,7 @@ functions/src/
 
 - **`index.ts`** initializes Firebase Admin once and re-exports every callable. This is the only file Firebase deploys as the entry point.
 - **`home/`** contains callables related to the home page.
-- **`assignments/`** is split by assignment type. Currently only `vocab/` exists. Future types (reading_vocab, translation, production) will each get their own subfolder with their own get-session and record-response callables.
+- **`assignments/`** is split by assignment type. Currently only `vocab/` exists. Future types (translation, production) will each get their own subfolder with their own get-session and record-response callables.
 - **`seed*.ts`** are standalone scripts (not deployed as callables) for populating Firestore with demo data.
 
 ### Callables
