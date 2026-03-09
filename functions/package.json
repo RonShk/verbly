@@ -7,6 +7,7 @@
     "seed:translation": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedTranslation.ts",
     "seed:all-from-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedAllFromVocabList.ts",
     "test:gemini": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/ai/testGemini.ts",
+    "test:select-target-words": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/utils/testSelectTargetWords.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
