@@ -20,12 +20,11 @@ const ProductionResponseSchema = z.object({
 
 export const generateProductionQuestions = functions.https.onCall(async (data) => {
   const userId = data?.userId;
-  const vocabListId = data?.vocabListId;
 
-  if (!userId || typeof userId !== "string" || !vocabListId || typeof vocabListId !== "string") {
+  if (!userId || typeof userId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "userId and vocabListId are required strings."
+      "userId is required."
     );
   }
 
@@ -55,7 +54,6 @@ export const generateProductionQuestions = functions.https.onCall(async (data) =
 
   const questionSetRef = await db.collection("production_question_sets").add({
     userId,
-    vocabListId,
     learningLanguage: "es",
     questions,
     createdAt: now,
@@ -70,7 +68,6 @@ export const generateProductionQuestions = functions.https.onCall(async (data) =
     teacher: "AI Generated",
     totalQuestionCount,
     completedQuestionCount: 0,
-    vocabListId,
     questionSetId,
     createdAt: now,
   });
