@@ -1,89 +1,75 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 const db = admin.firestore();
+
+const NEW_CARD_LIMIT = 10;
 
 export const getVocabSession = functions.https.onCall(async (data) => {
   const assignmentId = data?.assignmentId;
   const userId = data?.userId;
-  if (
-    !assignmentId ||
-    typeof assignmentId !== "string" ||
-    !userId ||
-    typeof userId !== "string"
-  ) {
+  if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
       "assignmentId and userId are required strings."
     );
   }
 
-  const assignmentSnap = await db
-    .collection("user_todo_assignments")
-    .doc(assignmentId)
-    .get();
+  // Daily vocab session: accept sentinel id "daily-vocab" (or any id; we ignore and use userId).
+  const now = new Date();
+  const nowTs = Timestamp.fromDate(now);
 
-  if (!assignmentSnap.exists) {
-    throw new functions.https.HttpsError(
-      "not-found",
-      "Assignment not found."
-    );
-  }
+  const [dueSnap, newSnap] = await Promise.all([
+    db.collection("vocab_cards").where("userId", "==", userId).where("due", "<=", nowTs).orderBy("due", "asc").get(),
+    db.collection("vocab_cards").where("userId", "==", userId).where("state", "==", 0).limit(NEW_CARD_LIMIT).get(),
+  ]);
 
-  const assignment = assignmentSnap.data()!;
-  if ((assignment.userId as string) !== userId) {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Assignment does not belong to this user."
-    );
-  }
+  const reviewCards = dueSnap.docs.filter((d) => (d.data().state as number) !== 0);
+  const seenQuestion = new Set<string>();
 
-  const type = (assignment.type as string) || "";
-  if (type !== "VOCAB") {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "This callable is for VOCAB assignments only."
-    );
-  }
-
-  const questionSetId = assignment.questionSetId as string | undefined;
-  if (!questionSetId) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Assignment has no linked question set. Re-seed data to fix."
-    );
-  }
-
-  const questionSetSnap = await db
-    .collection("vocab_question_sets")
-    .doc(questionSetId)
-    .get();
-
-  if (!questionSetSnap.exists) {
-    throw new functions.https.HttpsError(
-      "not-found",
-      "Vocab question set not found."
-    );
-  }
-
-  const questionSet = questionSetSnap.data()!;
-  const questions = (questionSet.questions as Array<{
-    index: number;
+  const questions: Array<{
+    vocabCardId: string;
     learningLanguageWord: string;
     englishWord: string;
-  }>) || [];
+    isNew: boolean;
+  }> = [];
 
-  const totalQuestionCount = (assignment.totalQuestionCount as number) ?? questions.length;
-  const completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
-  const teacher = (assignment.teacher as string) ?? "";
+  for (const doc of reviewCards) {
+    const d = doc.data();
+    const key = `${d.learningLanguageWord}|${d.englishWord}`;
+    if (seenQuestion.has(key)) continue;
+    seenQuestion.add(key);
+    questions.push({
+      vocabCardId: doc.id,
+      learningLanguageWord: d.learningLanguageWord as string,
+      englishWord: d.englishWord as string,
+      isNew: false,
+    });
+  }
+
+  for (const doc of newSnap.docs) {
+    const d = doc.data();
+    const key = `${d.learningLanguageWord}|${d.englishWord}`;
+    if (seenQuestion.has(key)) continue;
+    seenQuestion.add(key);
+    questions.push({
+      vocabCardId: doc.id,
+      learningLanguageWord: d.learningLanguageWord as string,
+      englishWord: d.englishWord as string,
+      isNew: true,
+    });
+  }
+
+  const totalQuestionCount = questions.length;
 
   return {
-    assignmentId,
-    type,
-    assignmentTitle: "Weekly Vocab",
-    teacher,
+    assignmentId: "daily-vocab",
+    type: "VOCAB",
+    assignmentTitle: "Daily Vocab",
+    teacher: "",
     totalQuestionCount,
-    completedQuestionCount,
+    completedQuestionCount: 0,
     questions,
   };
 });

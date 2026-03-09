@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/home_page_models.dart';
 import '../providers/home_page_provider.dart';
+import '../providers/vocab_session_provider.dart';
 import '../theme/app_colors.dart';
 
 class HomePage extends ConsumerWidget {
@@ -12,6 +13,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(homePageDataProvider);
+    final vocabSession = ref.watch(vocabSessionProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -47,21 +49,61 @@ class HomePage extends ConsumerWidget {
               ),
             ),
           ),
-          data: (data) => _buildContent(context, data),
+          data: (data) => _buildContent(context, data, vocabSession),
         ),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, HomePageData data) {
+  Widget _buildContent(
+    BuildContext context,
+    HomePageData data,
+    AsyncValue<VocabSessionState> vocabSession,
+  ) {
+    final vocabCache = vocabSession.value;
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    final hasTodayCache = vocabCache != null && vocabCache.sessionDateKey == todayKey;
+    final vocabDoneToday = hasTodayCache && vocabCache.questions.isEmpty;
+
+    final todoAssignments = <HomeAssignment>[];
+    for (final a in data.assignments) {
+      if (a.id == 'daily-vocab') {
+        if (vocabDoneToday) continue;
+        final count = hasTodayCache ? vocabCache.questions.length: a.totalQuestionCount;
+        todoAssignments.add(HomeAssignment(
+          id: a.id,
+          type: a.type,
+          teacher: a.teacher,
+          dueDate: a.dueDate,
+          totalQuestionCount: count,
+          completedQuestionCount: 0,
+          buttonLabel: count == 0 ? 'Start' : 'Start',
+        ));
+      } else {
+        todoAssignments.add(a);
+      }
+    }
+
+    final completed = <HomeCompletion>[
+      ...data.completed,
+      if (vocabDoneToday)
+        const HomeCompletion(
+          type: 'VOCAB',
+          teacher: '',
+          dueDate: '',
+          totalQuestionCount: 0,
+          completedAt: '',
+          subtitle: 'Daily Vocab • Done today',
+        ),
+    ];
+
     return CustomScrollView(
       slivers: [
         _buildHeader(context),
-        SliverToBoxAdapter(child: _buildWeeklySummary(context, data.weeklySummary)),
-        SliverToBoxAdapter(child: _buildSectionHeader(context, data.weekRange)),
+        SliverToBoxAdapter(child: _buildSectionHeader(context)),
         SliverList(
           delegate: SliverChildListDelegate(
-            data.assignments
+            todoAssignments
                 .map((a) => _AssignmentCard(
                       type: a.type,
                       teacher: a.teacher,
@@ -74,7 +116,7 @@ class HomePage extends ConsumerWidget {
                 .toList(),
           ),
         ),
-        SliverToBoxAdapter(child: _buildCompletedSection(context, data.completed)),
+        SliverToBoxAdapter(child: _buildCompletedSection(context, completed)),
       ],
     );
   }
@@ -108,7 +150,7 @@ class HomePage extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Weekly Assignments',
+                        'Assignments',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -131,84 +173,20 @@ class HomePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildWeeklySummary(BuildContext context, WeeklySummary summary) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder, width: 1),
-      ),
-      child: Row(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'WEEKLY TASK',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '${summary.remainingCount}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'remaining',
-                    style: TextStyle(
-                      color: AppColors.navbarInactive,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(BuildContext context, WeekRange weekRange) {
+  Widget _buildSectionHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(
-            "THIS WEEK'S ASSIGNMENTS",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          'ASSIGNMENTS',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
           ),
-          Text(
-            weekRange.label ?? '${weekRange.start} - ${weekRange.end}',
-            style: TextStyle(
-              color: AppColors.blueHighlighted,
-              fontSize: 12,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

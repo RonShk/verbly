@@ -78,7 +78,7 @@ class _UploadVocabPageState extends State<UploadVocabPage> {
 
     setState(() => _isLoading = true);
     try {
-      final callable = FirebaseFunctions.instance.httpsCallable('createVocabListForWeek');
+      final callable = FirebaseFunctions.instance.httpsCallable('addVocabWords');
       final body = {
         'userId': 'demo_user',
         'words': _words.map((w) => w.toJson()).toList(),

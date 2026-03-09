@@ -24,4 +24,4 @@ export { generateTranslationQuestions } from "./assignments/translation/generate
 export { getTranslationSession } from "./assignments/translation/getTranslationSession";
 export { evaluateTranslationResponse } from "./assignments/translation/evaluateTranslationResponse";
 
-export { createVocabListForWeek } from "./teacher/createVocabListForWeek";
+export { addVocabWords } from "./teacher/addVocabWords";

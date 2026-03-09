@@ -3,22 +3,6 @@ import * as admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
 import { getWeekBounds } from "../utils/getWeekBounds";
 
-function formatWeekRangeLabel(
-  start: Date,
-  end: Date,
-  utcOffsetMinutes: number
-): string {
-  const offsetMs = utcOffsetMinutes * 60_000;
-  const localStart = new Date(start.getTime() + offsetMs);
-  const localEnd = new Date(end.getTime() + offsetMs);
-  const opts: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  };
-  return `${localStart.toLocaleDateString("en-US", opts)} - ${localEnd.toLocaleDateString("en-US", opts)}`;
-}
-
 export const getHomePageData = functions.https.onCall(async (data) => {
   const userId = data?.userId;
   if (!userId || typeof userId !== "string") {
@@ -28,17 +12,15 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     );
   }
 
-  const utcOffsetMinutes =
-    typeof data?.timezoneOffsetMinutes === "number"
-      ? data.timezoneOffsetMinutes
-      : -(new Date().getTimezoneOffset());
+  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes: -(new Date().getTimezoneOffset());
 
   const db = admin.firestore();
   const { start: weekStart, end: weekEnd } = getWeekBounds(utcOffsetMinutes);
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);
+  const nowTs = Timestamp.now();
 
-  const [todoSnap, completedSnap] = await Promise.all([
+  const [todoSnap, completedSnap, vocabSnap] = await Promise.all([
     db
       .collection("user_todo_assignments")
       .where("userId", "==", userId)
@@ -52,7 +34,22 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       .where("completedAt", "<=", weekEndTs)
       .orderBy("completedAt", "desc")
       .get(),
+    db
+      .collection("vocab_cards")
+      .where("userId", "==", userId)
+      .where("due", "<=", nowTs)
+      .get(),
   ]);
+
+  const reviewDue = vocabSnap.docs.filter((d) => (d.data().state as number) !== 0).length;
+  const newDue = vocabSnap.docs.filter((d) => (d.data().state as number) === 0).length;
+  const vocabDueCount = reviewDue + Math.min(newDue, 10);
+
+  const todayLabel = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 
   const assignments: Array<{
     id: string;
@@ -64,11 +61,25 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     buttonLabel: string;
   }> = [];
 
+  assignments.push({
+    id: "daily-vocab",
+    type: "VOCAB",
+    teacher: "",
+    dueDate: todayLabel,
+    totalQuestionCount: vocabDueCount,
+    completedQuestionCount: 0,
+    buttonLabel: vocabDueCount === 0 ? "Start" : "Start",
+  });
+
   todoSnap.docs.forEach((doc) => {
     const d = doc.data();
     const dueDate = d.dueDate?.toDate?.() as Date | undefined;
     const dueLabel = dueDate
-      ? dueDate.toLocaleDateString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" })
+      ? dueDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          hour: "numeric",
+          minute: "2-digit",
+        })
       : "";
     const completedQuestionCount = (d.completedQuestionCount as number) ?? 0;
     assignments.push({
@@ -103,21 +114,7 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     };
   });
 
-  const weeklySummary = {
-    remainingCount: assignments.length,
-    totalCount: assignments.length,
-  };
-
-  const offsetMs = utcOffsetMinutes * 60_000;
-  const weekRange = {
-    start: new Date(weekStart.getTime() + offsetMs).toISOString().slice(0, 10),
-    end: new Date(weekEnd.getTime() + offsetMs).toISOString().slice(0, 10),
-    label: formatWeekRangeLabel(weekStart, weekEnd, utcOffsetMinutes),
-  };
-
   return {
-    weeklySummary,
-    weekRange,
     assignments,
     completed,
   };

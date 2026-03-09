@@ -28,6 +28,16 @@
       "collectionGroup": "translation_question_sets",
       "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "weekStart", "order": "ASCENDING" } ]
+    },
+    {
+      "collectionGroup": "vocab_cards",
+      "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "due", "order": "ASCENDING" } ]
+    },
+    {
+      "collectionGroup": "vocab_cards",
+      "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "state", "order": "ASCENDING" } ]
     }
   ],
   "fieldOverrides": [
