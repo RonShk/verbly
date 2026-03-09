@@ -1,16 +1,16 @@
 /// Response shape from the getHomePageData callable.
 class HomePageData {
   const HomePageData({
-    required this.weeklySummary,
-    required this.weekRange,
     required this.assignments,
     required this.completed,
+    this.weeklySummary,
+    this.weekRange,
   });
 
-  final WeeklySummary weeklySummary;
-  final WeekRange weekRange;
   final List<HomeAssignment> assignments;
   final List<HomeCompletion> completed;
+  final WeeklySummary? weeklySummary;
+  final WeekRange? weekRange;
 
   factory HomePageData.fromJson(dynamic json) {
     if (json is! Map) {
@@ -18,10 +18,10 @@ class HomePageData {
     }
 
     return HomePageData(
-      weeklySummary: WeeklySummary.fromJson(json['weeklySummary'] ?? {}),
-      weekRange: WeekRange.fromJson(json['weekRange'] ?? {}),
       assignments: (json['assignments'] as List?)?.map((e) => HomeAssignment.fromJson(e)).toList() ?? [],
-      completed: (json['completed'] as List?)?.map((e) => HomeCompletion.fromJson(e)).toList() ?? []
+      completed: (json['completed'] as List?)?.map((e) => HomeCompletion.fromJson(e)).toList() ?? [],
+      weeklySummary: json['weeklySummary'] != null ? WeeklySummary.fromJson(json['weeklySummary']) : null,
+      weekRange: json['weekRange'] != null ? WeekRange.fromJson(json['weekRange']) : null,
     );
   }
 }

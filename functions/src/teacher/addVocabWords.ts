@@ -1,18 +1,19 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
+import { emptyVocabCardFields } from "../assignments/vocab/fsrsCard";
 
 const db = admin.firestore();
 
 type VocabWord = { learningLanguageWord: string; englishWord: string };
 
 /**
- * Appends new words to the student's single vocab list.
+ * Appends new words to the student's vocab list (e.g. when teacher uploads a CSV).
  * If no vocab list exists for that userId yet, creates one.
  * Deduplicates by (learningLanguageWord, englishWord) so the same pair is never added twice.
- * Does NOT create any assignments or question sets.
+ * Creates an FSRS vocab_cards doc for each new word.
  */
-export const createVocabListForWeek = functions.https.onCall(async (data) => {
+export const addVocabWords = functions.https.onCall(async (data) => {
   const userId = data?.userId;
   const words = data?.words as VocabWord[] | undefined;
   const learningLanguage = (data?.learningLanguage as string) || "es";
@@ -60,6 +61,19 @@ export const createVocabListForWeek = functions.https.onCall(async (data) => {
       updatedAt: Timestamp.now(),
     });
 
+    const now = new Date();
+    const baseCardFields = emptyVocabCardFields(now, Timestamp);
+    for (const w of validWords) {
+      await db.collection("vocab_cards").add({
+        ...baseCardFields,
+        userId,
+        vocabListId: ref.id,
+        learningLanguageWord: w.learningLanguageWord,
+        englishWord: w.englishWord,
+        createdAt: Timestamp.now(),
+      });
+    }
+
     return {
       vocabListId: ref.id,
       newWordsAdded: validWords.length,
@@ -90,6 +104,19 @@ export const createVocabListForWeek = functions.https.onCall(async (data) => {
       words: [...existingWords, ...newWords],
       updatedAt: Timestamp.now(),
     });
+
+    const now = new Date();
+    const baseCardFields = emptyVocabCardFields(now, Timestamp);
+    for (const w of newWords) {
+      await db.collection("vocab_cards").add({
+        ...baseCardFields,
+        userId,
+        vocabListId: doc.id,
+        learningLanguageWord: w.learningLanguageWord,
+        englishWord: w.englishWord,
+        createdAt: Timestamp.now(),
+      });
+    }
   }
 
   return {

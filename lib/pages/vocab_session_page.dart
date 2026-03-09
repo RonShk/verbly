@@ -19,10 +19,25 @@ class VocabSessionPage extends ConsumerStatefulWidget {
 
 class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   bool _isFlipped = false;
+  int _currentIndex = 0;
+
+  @override
+  void didUpdateWidget(covariant VocabSessionPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.assignmentId != oldWidget.assignmentId) {
+      _currentIndex = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(vocabSessionProvider(widget.assignmentId));
+    final sessionAsync = ref.watch(vocabSessionProvider);
+
+    if (sessionAsync.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -51,8 +66,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () =>
-                        ref.invalidate(vocabSessionProvider(widget.assignmentId)),
+                    onPressed: () {
+                      ref.read(vocabSessionProvider.notifier).clear();
+                    },
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -61,13 +77,12 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               ),
             ),
           ),
-          data: (session) {
-            final total = session.totalQuestionCount;
-            final questions = session.questions;
-            final currentCardIndex = session.completedQuestionCount;
-            final displayIndex = currentCardIndex + 1;
+          data: (state) {
+            final questions = state.questions;
+            final session = state.session;
+            final currentIndex = _currentIndex;
 
-            if (questions.isEmpty || currentCardIndex >= questions.length) {
+            if (questions.isEmpty || currentIndex >= questions.length) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -91,11 +106,11 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               );
             }
 
-            final q = questions[currentCardIndex];
+            final q = questions[currentIndex];
 
             return Column(
               children: [
-                _buildHeader(context, session.assignmentTitle, displayIndex, total),
+                _buildHeader(context, session.assignmentTitle),
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -105,7 +120,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                   ),
                 ),
                 if (_isFlipped)
-                  _buildNextCardButton(context, currentCardIndex),
+                  _buildRatingButtons(context, session, q, currentIndex),
               ],
             );
           },
@@ -114,77 +129,40 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     );
   }
 
-  Widget _buildHeader(
-      BuildContext context, String title, int current, int total) {
-    final progress = total > 0 ? current / total : 0.0;
+  Widget _buildHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.close),
-                color: Colors.white.withValues(alpha: 0.9),
-                onPressed: () => context.go('/home'),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      'ACADEMIC PRACTICE',
-                      style: TextStyle(
-                        color: AppColors.blueHighlighted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 48),
-            ],
+          IconButton(
+            icon: const Icon(Icons.close),
+            color: Colors.white.withValues(alpha: 0.9),
+            onPressed: () => context.go('/home'),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                'PROGRESS',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  'ACADEMIC PRACTICE',
+                  style: TextStyle(
+                    color: AppColors.blueHighlighted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                '$current of $total',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 12,
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: AppColors.cardBorder,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
+              ],
             ),
           ),
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -259,43 +237,96 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     );
   }
 
-  Widget _buildNextCardButton(BuildContext context, int currentCardIndex) {
+  Widget _buildRatingButtons(
+    BuildContext context,
+    VocabSessionData session,
+    VocabQuestion q,
+    int currentCardIndex,
+  ) {
+    final ratings = <_RatingOption>[
+      _RatingOption(1, 'Again', Icons.refresh, const Color(0xFFE53935)),
+      _RatingOption(2, 'Hard', Icons.fitness_center, const Color(0xFFFB8C00)),
+      _RatingOption(3, 'Good', Icons.thumb_up, const Color(0xFF43A047)),
+      _RatingOption(4, 'Easy', Icons.bolt, const Color(0xFF1E88E5)),
+    ];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: () async {
-            final result = await recordVocabResponse(
-              assignmentId: widget.assignmentId,
-              userId: demoUserId,
-              questionIndex: currentCardIndex,
-            );
-            if (!context.mounted) return;
-            if (result.assignmentCompleted) {
-              context.go('/home');
-              return;
-            }
-            ref.invalidate(vocabSessionProvider(widget.assignmentId));
-            setState(() => _isFlipped = false);
-          },
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.button,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'How well did you know it?',
+            style: TextStyle(
+              color: AppColors.navbarInactive,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Next Card', style: TextStyle(fontSize: 16)),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward, size: 18),
-            ],
+          const SizedBox(height: 12),
+          Row(
+            children: ratings.map((r) {
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FilledButton(
+                    onPressed: () => _onRating(context, session, q, currentCardIndex, r.rating),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: r.color,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(r.icon, size: 20, color: Colors.white),
+                        const SizedBox(height: 4),
+                        Text(r.label, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
-        ),
+        ],
       ),
     );
   }
+
+  Future<void> _onRating(
+    BuildContext context,
+    VocabSessionData session,
+    VocabQuestion q,
+    int currentCardIndex,
+    int rating,
+  ) async {
+    final result = await recordVocabResponse(
+      userId: demoUserId,
+      vocabCardId: q.vocabCardId,
+      rating: rating,
+      totalQuestionCount: ref.read(vocabSessionProvider).value?.questions.length ?? 0,
+      completedQuestionCount: currentCardIndex + 1,
+    );
+    if (!context.mounted) return;
+    ref.read(vocabSessionProvider.notifier).applyRating(
+      result.stillDueToday,
+      currentCardIndex,
+      q,
+    );
+    setState(() {
+      _isFlipped = false;
+      // _currentIndex stays the same: next card is now at this index (after remove/move)
+    });
+  }
+}
+
+class _RatingOption {
+  const _RatingOption(this.rating, this.label, this.icon, this.color);
+  final int rating;
+  final String label;
+  final IconData icon;
+  final Color color;
 }

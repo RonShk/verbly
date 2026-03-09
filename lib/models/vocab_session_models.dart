@@ -37,14 +37,16 @@ class VocabSessionData {
 
 class VocabQuestion {
   const VocabQuestion({
-    required this.index,
+    required this.vocabCardId,
     required this.learningLanguageWord,
     required this.englishWord,
+    this.isNew = false,
   });
 
-  final int index;
+  final String vocabCardId;
   final String learningLanguageWord;
   final String englishWord;
+  final bool isNew;
 
   factory VocabQuestion.fromJson(dynamic json) {
     if (json is! Map) {
@@ -52,9 +54,10 @@ class VocabQuestion {
     }
 
     return VocabQuestion(
-      index: (json['index'] as num?)?.toInt() ?? 0,
+      vocabCardId: (json['vocabCardId'] as String?) ?? '',
       learningLanguageWord: (json['learningLanguageWord'] as String?) ?? '',
-      englishWord: (json['englishWord'] as String?) ?? ''
+      englishWord: (json['englishWord'] as String?) ?? '',
+      isNew: (json['isNew'] as bool?) ?? false,
     );
   }
 }
