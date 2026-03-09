@@ -1,7 +1,7 @@
 /**
  * Finds the existing vocab_lists doc for demo_user this week and generates
- * AI-backed question sets + assignments for TRANSLATION, READING_VOCAB, and
- * PRODUCTION. Run after seedVocab (or after the teacher uploads a list).
+ * AI-backed question sets + assignments for TRANSLATION and PRODUCTION.
+ * Run after seedVocab (or after the teacher uploads a list).
  *
  *   cd functions && npm run seed:all-from-vocab
  *
@@ -28,14 +28,6 @@ const Timestamp = admin.firestore.Timestamp;
 type VocabWord = { learningLanguageWord: string; englishWord: string };
 
 // ── Zod schemas ────────────────────────────────────────────────────────
-
-const ReadingVocabQuestionSchema = z.object({
-  sentenceInLearningLanguage: z.string(),
-  englishMeaning: z.string(),
-  vocabWordsUsed: z.array(z.string()),
-});
-const ReadingVocabResponseSchema = z.object({ questions: z.array(ReadingVocabQuestionSchema) });
-
 const prodDescriptions = ProductionPrompts.descriptions.generate;
 const ProductionQuestionSchema = z.object({
   sentenceInNativeLanguage: z.string().describe(prodDescriptions.sentenceInNativeLanguage),
@@ -124,43 +116,7 @@ async function run(): Promise<void> {
   const teacher = "Teacher";
   const dueDate = Timestamp.fromDate(weekEnd);
 
-  // 2. READING_VOCAB ─────────────────────────────────────────────────────
-  console.log("\n── READING_VOCAB ──");
-  const readingPrompt = `You are a Spanish language teacher creating reading practice sentences.
-
-Given these Spanish-English vocabulary pairs: ${wordPairs}
-
-Generate ${words.length} short, simple Spanish sentences or phrases using ONLY the vocabulary words from the list above. You may also use common articles (el, la, los, las, un, una), prepositions (en, de, a, con, por, para), conjunctions (y, o, pero), and basic verbs (es, está, tiene, hay) to form grammatically correct sentences.
-
-Each sentence should:
-- Use 2-4 vocabulary words from the list
-- Be beginner-friendly and easy to read
-- Be a natural, meaningful sentence (not random word salad)
-
-For each sentence, also provide its English translation.
-
-Return a JSON object with a "questions" array. Each item must have:
-- "sentenceInLearningLanguage": the Spanish sentence
-- "englishMeaning": the English translation
-- "vocabWordsUsed": array of the Spanish vocabulary words from the list that appear in this sentence`;
-
-  console.log("  Calling Gemini...");
-  const readingResult = await generateStructured(readingPrompt, ReadingVocabResponseSchema);
-  const readingQuestions = readingResult.questions.map((q, i) => ({
-    index: i,
-    sentenceInLearningLanguage: q.sentenceInLearningLanguage,
-    englishMeaning: q.englishMeaning,
-    vocabWordsUsed: q.vocabWordsUsed,
-  }));
-  console.log(`  Gemini generated ${readingQuestions.length} reading vocab questions.`);
-
-  const readingQsRef = await db.collection("reading_vocab_question_sets").add({
-    userId, vocabListId, learningLanguage, weekStart: weekStartTs, questions: readingQuestions, createdAt: Timestamp.now(),
-  });
-  console.log(`  Created reading_vocab_question_sets: ${readingQsRef.id}`);
-  await upsertAssignment(userId, "READING_VOCAB", teacher, dueDate, weekStartTs, weekEndTs, vocabListId, readingQsRef.id, readingQuestions.length);
-
-  // 3. PRODUCTION ────────────────────────────────────────────────────────
+  // 2. PRODUCTION ────────────────────────────────────────────────────────
   console.log("\n── PRODUCTION ──");
   const productionPrompt = ProductionPrompts.buildGeneratePrompt(wordPairs, words.length);
   console.log("  Calling Gemini...");
@@ -180,7 +136,7 @@ Return a JSON object with a "questions" array. Each item must have:
   console.log(`  Created production_question_sets: ${prodQsRef.id}`);
   await upsertAssignment(userId, "PRODUCTION", teacher, dueDate, weekStartTs, weekEndTs, vocabListId, prodQsRef.id, productionQuestions.length);
 
-  // 4. TRANSLATION ───────────────────────────────────────────────────────
+  // 3. TRANSLATION ───────────────────────────────────────────────────────
   console.log("\n── TRANSLATION ──");
   const translationPrompt = TranslationPrompts.buildGeneratePrompt(wordPairs, words.length);
   console.log("  Calling Gemini...");
@@ -200,7 +156,7 @@ Return a JSON object with a "questions" array. Each item must have:
   console.log(`  Created translation_question_sets: ${transQsRef.id}`);
   await upsertAssignment(userId, "TRANSLATION", teacher, dueDate, weekStartTs, weekEndTs, vocabListId, transQsRef.id, translationQuestions.length);
 
-  console.log("\n✓ All three AI assignment types seeded from vocab list.");
+  console.log("\n✓ All AI assignment types seeded from vocab list.");
 }
 
 run().catch((e) => {

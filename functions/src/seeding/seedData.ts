@@ -17,7 +17,6 @@ async function runSeed(): Promise<void> {
 
   const todoPayloads = [
     { userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
-    { userId, type: "READING_VOCAB", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 1 * 24 * 60 * 60 * 1000)), totalQuestionCount: 5, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
     { userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
     { userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
   ];
@@ -44,16 +43,8 @@ async function runSeed(): Promise<void> {
     totalQuestionCount: 10,
     completedAt: Timestamp.fromDate(completedAt1),
   });
-  await db.collection("user_completed_assignments").add({
-    userId,
-    type: "READING_VOCAB",
-    teacher: "Prof. Elena Vance",
-    dueDate: Timestamp.fromDate(dueDate2),
-    totalQuestionCount: 5,
-    completedAt: Timestamp.fromDate(completedAt2),
-  });
 
-  console.log("Seed complete. user_todo_assignments: 4, user_completed_assignments: 2");
+  console.log("Seed complete. user_todo_assignments: 3, user_completed_assignments: 1");
 }
 
 runSeed().catch((e) => {
