@@ -3,14 +3,10 @@ class HomePageData {
   const HomePageData({
     required this.assignments,
     required this.completed,
-    this.weeklySummary,
-    this.weekRange,
   });
 
   final List<HomeAssignment> assignments;
   final List<HomeCompletion> completed;
-  final WeeklySummary? weeklySummary;
-  final WeekRange? weekRange;
 
   factory HomePageData.fromJson(dynamic json) {
     if (json is! Map) {
@@ -20,51 +16,6 @@ class HomePageData {
     return HomePageData(
       assignments: (json['assignments'] as List?)?.map((e) => HomeAssignment.fromJson(e)).toList() ?? [],
       completed: (json['completed'] as List?)?.map((e) => HomeCompletion.fromJson(e)).toList() ?? [],
-      weeklySummary: json['weeklySummary'] != null ? WeeklySummary.fromJson(json['weeklySummary']) : null,
-      weekRange: json['weekRange'] != null ? WeekRange.fromJson(json['weekRange']) : null,
-    );
-  }
-}
-
-class WeeklySummary {
-  const WeeklySummary({
-    required this.remainingCount,
-    required this.totalCount,
-  });
-
-  final int remainingCount;
-  final int totalCount;
-
-  factory WeeklySummary.fromJson(dynamic json) {
-    if (json == null || json is! Map) {
-      return const WeeklySummary(remainingCount: 0, totalCount: 0);
-    }
-    return WeeklySummary(
-      remainingCount: (json['remainingCount'] as num?)?.toInt() ?? 0,
-      totalCount: (json['totalCount'] as num?)?.toInt() ?? 0
-    );
-  }
-}
-
-class WeekRange {
-  const WeekRange({
-    required this.start,
-    required this.end,
-    this.label,
-  });
-
-  final String start;
-  final String end;
-  final String? label;
-
-  factory WeekRange.fromJson(dynamic json) {
-    if (json == null || json is! Map) {
-      return const WeekRange(start: '', end: '');
-    }
-    return WeekRange(
-      start: (json['start'] as String?) ?? '',
-      end: (json['end'] as String?) ?? '',
-      label: json['label'] as String?,
     );
   }
 }

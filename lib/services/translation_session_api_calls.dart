@@ -2,11 +2,11 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/translation_session_models.dart';
 
-Future<TranslationSessionData> getTranslationSession({required String assignmentId, required String userId,}) async {
+Future<TranslationSessionData> getTranslationSession({required String userId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getTranslationSession');
   final result = await callable.call({
-    'assignmentId': assignmentId,
     'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
   final data = result.data;

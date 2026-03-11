@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 /** Priority bucket a word was selected from. */
 export type PriorityBucket = "new" | "recentFailure" | "hard" | "leech";
@@ -81,7 +82,6 @@ export function getChallengeMix(totalSlots: number): {recentFailureLimit: number
  */
 export async function selectTargetWordsForSession(userId: string, options: SelectTargetWordsOptions = {}): Promise<TargetWord[]> {
   const db = admin.firestore();
-  const Timestamp = admin.firestore.Timestamp;
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const excludeSet = options.excludeWordKeys ? new Set(options.excludeWordKeys) : null;
   const now = new Date();

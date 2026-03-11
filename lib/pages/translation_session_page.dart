@@ -11,9 +11,7 @@ import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class TranslationSessionPage extends ConsumerStatefulWidget {
-  const TranslationSessionPage({super.key, required this.assignmentId});
-
-  final String assignmentId;
+  const TranslationSessionPage({super.key});
 
   @override
   ConsumerState<TranslationSessionPage> createState() =>
@@ -25,6 +23,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   bool _isSubmitting = false;
   TranslationEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
+  String? _assignmentId;
 
   @override
   void dispose() {
@@ -34,8 +33,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync =
-        ref.watch(translationSessionProvider(widget.assignmentId));
+    final sessionAsync = ref.watch(translationSessionProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -65,8 +63,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () => ref.invalidate(
-                        translationSessionProvider(widget.assignmentId)),
+                    onPressed: () => ref.invalidate(translationSessionProvider),
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -76,6 +73,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             ),
           ),
           data: (session) {
+            _assignmentId = session.assignmentId;
             final total = session.totalQuestionCount;
             final questions = session.questions;
             final currentCardIndex = session.completedQuestionCount;
@@ -405,13 +403,13 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
   Future<void> _submitAnswer(int questionIndex) async {
     final answer = _answerController.text.trim();
-    if (answer.isEmpty) return;
+    if (answer.isEmpty || _assignmentId == null) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateTranslationResponse(
-        assignmentId: widget.assignmentId,
+        assignmentId: _assignmentId!,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
@@ -438,11 +436,12 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   }
 
   Future<void> _skipQuestion(int questionIndex) async {
+    if (_assignmentId == null) return;
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateTranslationResponse(
-        assignmentId: widget.assignmentId,
+        assignmentId: _assignmentId!,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
@@ -455,7 +454,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
         return;
       }
 
-      ref.invalidate(translationSessionProvider(widget.assignmentId));
+      ref.invalidate(translationSessionProvider);
       _resetState();
     } catch (e) {
       if (!mounted) return;
@@ -845,7 +844,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               context.go('/home');
               return;
             }
-            ref.invalidate(translationSessionProvider(widget.assignmentId));
+            ref.invalidate(translationSessionProvider);
             _resetState();
           },
           style: FilledButton.styleFrom(

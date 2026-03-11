@@ -45,8 +45,8 @@ final _router = GoRouter(
         final type = state.pathParameters['type'] ?? '';
         final Widget page = switch (type) {
           'vocab' => VocabSessionPage(assignmentId: id),
-          'translation' => TranslationSessionPage(assignmentId: id),
-          'production' => ProductionSessionPage(assignmentId: id),
+          'translation' => const TranslationSessionPage(),
+          'production' => const ProductionSessionPage(),
           _ => VocabSessionPage(assignmentId: id),
         };
         return NoTransitionPage(

@@ -1,46 +1,57 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { generateProductionQuestions } from "./generateProductionQuestions";
 
 const db = admin.firestore();
 
-export const getProductionSession = functions.https.onCall(async (data) => {
-  const assignmentId = data?.assignmentId;
-  const userId = data?.userId;
+function getTodayDateString(utcOffsetMinutes: number): string {
+  const offsetMs = utcOffsetMinutes * 60_000;
+  const clientLocal = new Date(Date.now() + offsetMs);
+  return clientLocal.toISOString().substring(0, 10);
+}
 
-  if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
+export const getProductionSession = functions.https.onCall(async (data) => {
+  const userId = data?.userId;
+  const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number"
+    ? data.timezoneOffsetMinutes
+    : -(new Date().getTimezoneOffset());
+
+  if (!userId || typeof userId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "assignmentId and userId are required strings."
+      "userId is required."
     );
   }
 
-  const assignmentSnap = await db.collection("user_todo_assignments").doc(assignmentId).get();
+  const todayStr = getTodayDateString(timezoneOffsetMinutes);
 
-  if (!assignmentSnap.exists) {
-    throw new functions.https.HttpsError("not-found", "Assignment not found.");
+  // Look for an existing assignment for today
+  const existingSnap = await db.collection("user_todo_assignments")
+    .where("userId", "==", userId)
+    .where("type", "==", "PRODUCTION")
+    .where("assignmentDate", "==", todayStr)
+    .limit(1)
+    .get();
+
+  let assignmentId: string;
+  let assignmentData: FirebaseFirestore.DocumentData;
+
+  if (!existingSnap.empty) {
+    const doc = existingSnap.docs[0];
+    assignmentId = doc.id;
+    assignmentData = doc.data();
+  } else {
+    const generated = await generateProductionQuestions(userId, todayStr);
+    assignmentId = generated.assignmentId;
+    const doc = await db.collection("user_todo_assignments").doc(assignmentId).get();
+    assignmentData = doc.data()!;
   }
 
-  const assignment = assignmentSnap.data()!;
-  if ((assignment.userId as string) !== userId) {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Assignment does not belong to this user."
-    );
-  }
-
-  const type = (assignment.type as string) || "";
-  if (type !== "PRODUCTION") {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "This callable is for PRODUCTION assignments only."
-    );
-  }
-
-  const questionSetId = assignment.questionSetId as string | undefined;
+  const questionSetId = assignmentData.questionSetId as string;
   if (!questionSetId) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      "Assignment has no linked question set. Re-seed data to fix."
+      "Assignment has no linked question set."
     );
   }
 
@@ -54,27 +65,15 @@ export const getProductionSession = functions.https.onCall(async (data) => {
   }
 
   const questionSet = questionSetSnap.data()!;
-  const questions =(
-      questionSet.questions as Array<{
-      index: number;
-      sentenceInNativeLanguage: string;
-      vocabWordsUsed: string[];
-      studentAnswer: string | null;
-      aiEvaluation: {
-        score: number;
-        feedback: string;
-        correctedVersion: string;
-        explanations: Array<{ category: string; detail: string }>;
-      } | null;
-  }>) || [];
+  const questions = (questionSet.questions as Array<Record<string, unknown>>) || [];
 
-  const totalQuestionCount = (assignment.totalQuestionCount as number) ?? questions.length;
-  const completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
-  const teacher = (assignment.teacher as string) ?? "";
+  const totalQuestionCount = (assignmentData.totalQuestionCount as number) ?? questions.length;
+  const completedQuestionCount = (assignmentData.completedQuestionCount as number) ?? 0;
+  const teacher = (assignmentData.teacher as string) ?? "";
 
   return {
     assignmentId,
-    type,
+    type: "PRODUCTION",
     assignmentTitle: "Production Mode",
     teacher,
     totalQuestionCount,

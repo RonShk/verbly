@@ -3,31 +3,24 @@
     {
       "collectionGroup": "user_todo_assignments",
       "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "dueDate", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "user_todo_assignments",
-      "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "dueDate", "order": "ASCENDING" }
+        { "fieldPath": "assignmentDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "user_completed_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "assignmentDate", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "user_completed_assignments",
       "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "completedAt", "order": "DESCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_question_sets",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "weekStart", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "translation_question_sets",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "weekStart", "order": "ASCENDING" } ]
     },
     {
       "collectionGroup": "vocab_cards",
