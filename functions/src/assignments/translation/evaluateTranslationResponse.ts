@@ -106,10 +106,10 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data) =
     const { assignmentCompleted } = await updateAssignmentProgress(
       assignmentRef,
       {
-        dueDate: assignment.dueDate,
         type: assignment.type as string,
         teacher: assignment.teacher as string,
         totalQuestionCount,
+        assignmentDate: assignment.assignmentDate as string | undefined,
       },
       userId,
       completedQuestionCount
@@ -150,10 +150,10 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data) =
   const { assignmentCompleted } = await updateAssignmentProgress(
     assignmentRef,
     {
-      dueDate: assignment.dueDate,
       type: assignment.type as string,
       teacher: assignment.teacher as string,
       totalQuestionCount,
+      assignmentDate: assignment.assignmentDate as string | undefined,
     },
     userId,
     completedQuestionCount

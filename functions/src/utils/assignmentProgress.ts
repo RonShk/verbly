@@ -7,10 +7,10 @@ const db = admin.firestore();
  * Data from a user_todo_assignments document needed to move it to completed.
  */
 export interface TodoAssignmentFields {
-  dueDate: Timestamp;
   type: string;
   teacher: string;
   totalQuestionCount: number;
+  assignmentDate?: string;
 }
 
 /**
@@ -27,14 +27,17 @@ export async function updateAssignmentProgress(assignmentRef: DocumentReference,
 
   if (assignmentCompleted) {
     await db.runTransaction(async (tx) => {
-      tx.set(db.collection("user_completed_assignments").doc(), {
+      const completedDoc: Record<string, unknown> = {
         userId,
         type: assignment.type,
         teacher: assignment.teacher,
-        dueDate: assignment.dueDate,
         totalQuestionCount,
         completedAt: Timestamp.now(),
-      });
+      };
+      if (assignment.assignmentDate) {
+        completedDoc.assignmentDate = assignment.assignmentDate;
+      }
+      tx.set(db.collection("user_completed_assignments").doc(), completedDoc);
       tx.delete(assignmentRef);
     });
   } else {

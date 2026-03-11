@@ -1,5 +1,5 @@
-import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { generateStructured } from "../../ai/geminiClient";
 import { selectTargetWordsForSession } from "../../utils/selectTargetWordsForSession";
@@ -18,23 +18,15 @@ const TranslationResponseSchema = z.object({
   questions: z.array(TranslationQuestionSchema),
 });
 
-export const generateTranslationQuestions = functions.https.onCall(async (data) => {
-  const userId = data?.userId;
-
-  if (!userId || typeof userId !== "string") {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "userId is required."
-    );
-  }
-
+/**
+ * Generates a new set of translation questions for the user and creates
+ * the corresponding assignment and question set documents in Firestore.
+ */
+export async function generateTranslationQuestions(userId: string, assignmentDate: string): Promise<{ assignmentId: string; questionSetId: string; totalQuestionCount: number }> {
   const words = await selectTargetWordsForSession(userId, { maxWords: 30 });
 
   if (words.length === 0) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "No words available for this session."
-    );
+    throw new Error("No vocab words available. Add words before starting a translation session.");
   }
 
   const wordPairs = words.map((w) => `${w.learningLanguageWord} (${w.englishWord})`).join(", ");
@@ -50,7 +42,7 @@ export const generateTranslationQuestions = functions.https.onCall(async (data) 
     aiEvaluation: null,
   }));
 
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
 
   const questionSetRef = await db.collection("translation_question_sets").add({
     userId,
@@ -69,6 +61,7 @@ export const generateTranslationQuestions = functions.https.onCall(async (data) 
     totalQuestionCount,
     completedQuestionCount: 0,
     questionSetId,
+    assignmentDate,
     createdAt: now,
   });
 
@@ -77,4 +70,4 @@ export const generateTranslationQuestions = functions.https.onCall(async (data) 
     questionSetId,
     totalQuestionCount,
   };
-});
+}

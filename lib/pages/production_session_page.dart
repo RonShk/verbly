@@ -11,9 +11,7 @@ import '../services/production_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class ProductionSessionPage extends ConsumerStatefulWidget {
-  const ProductionSessionPage({super.key, required this.assignmentId});
-
-  final String assignmentId;
+  const ProductionSessionPage({super.key});
 
   @override
   ConsumerState<ProductionSessionPage> createState() =>
@@ -26,6 +24,7 @@ class _ProductionSessionPageState
   bool _isSubmitting = false;
   ProductionEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
+  String? _assignmentId;
 
   @override
   void dispose() {
@@ -35,8 +34,7 @@ class _ProductionSessionPageState
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync =
-        ref.watch(productionSessionProvider(widget.assignmentId));
+    final sessionAsync = ref.watch(productionSessionProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,8 +64,7 @@ class _ProductionSessionPageState
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () => ref.invalidate(
-                        productionSessionProvider(widget.assignmentId)),
+                    onPressed: () => ref.invalidate(productionSessionProvider),
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -77,6 +74,7 @@ class _ProductionSessionPageState
             ),
           ),
           data: (session) {
+            _assignmentId = session.assignmentId;
             final total = session.totalQuestionCount;
             final questions = session.questions;
             final currentCardIndex = session.completedQuestionCount;
@@ -405,13 +403,13 @@ class _ProductionSessionPageState
 
   Future<void> _submitAnswer(int questionIndex) async {
     final answer = _answerController.text.trim();
-    if (answer.isEmpty) return;
+    if (answer.isEmpty || _assignmentId == null) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateProductionResponse(
-        assignmentId: widget.assignmentId,
+        assignmentId: _assignmentId!,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
@@ -438,11 +436,12 @@ class _ProductionSessionPageState
   }
 
   Future<void> _skipQuestion(int questionIndex) async {
+    if (_assignmentId == null) return;
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateProductionResponse(
-        assignmentId: widget.assignmentId,
+        assignmentId: _assignmentId!,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
@@ -455,7 +454,7 @@ class _ProductionSessionPageState
         return;
       }
 
-      ref.invalidate(productionSessionProvider(widget.assignmentId));
+      ref.invalidate(productionSessionProvider);
       _resetState();
     } catch (e) {
       if (!mounted) return;
@@ -843,7 +842,7 @@ class _ProductionSessionPageState
               context.go('/home');
               return;
             }
-            ref.invalidate(productionSessionProvider(widget.assignmentId));
+            ref.invalidate(productionSessionProvider);
             _resetState();
           },
           style: FilledButton.styleFrom(

@@ -2,11 +2,11 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/production_session_models.dart';
 
-Future<ProductionSessionData> getProductionSession({required String assignmentId, required String userId,}) async {
+Future<ProductionSessionData> getProductionSession({required String userId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getProductionSession');
   final result = await callable.call({
-    'assignmentId': assignmentId,
     'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
   final data = result.data;
@@ -18,8 +18,6 @@ Future<ProductionSessionData> getProductionSession({required String assignmentId
 
   return ProductionSessionData.fromJson(data);
 }
-
-
 
 class ProductionEvaluationResult {
   const ProductionEvaluationResult({
@@ -65,7 +63,12 @@ class ProductionEvaluationResult {
   }
 }
 
-Future<ProductionEvaluationResult> evaluateProductionResponse({required String assignmentId, required String userId, required int questionIndex, required String studentAnswer,}) async {
+Future<ProductionEvaluationResult> evaluateProductionResponse({
+  required String assignmentId,
+  required String userId,
+  required int questionIndex,
+  required String studentAnswer,
+}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('evaluateProductionResponse');
   final result = await callable.call({
     'assignmentId': assignmentId,
