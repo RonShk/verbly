@@ -1,10 +1,5 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
-
-const db = admin.firestore();
-
-const NEW_CARD_LIMIT = 10;
+import { getVocabDueInfo } from "../../utils/getVocabDueInfo";
 
 export const getVocabSession = functions.https.onCall(async (data) => {
   const assignmentId = data?.assignmentId;
@@ -16,18 +11,13 @@ export const getVocabSession = functions.https.onCall(async (data) => {
     );
   }
 
-  // Daily vocab session: accept sentinel id "daily-vocab" (or any id; we ignore and use userId).
-  const now = new Date();
-  const nowTs = Timestamp.fromDate(now);
+  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number"
+    ? data.timezoneOffsetMinutes
+    : 0;
 
-  const [dueSnap, newSnap] = await Promise.all([
-    db.collection("vocab_cards").where("userId", "==", userId).where("due", "<=", nowTs).orderBy("due", "asc").get(),
-    db.collection("vocab_cards").where("userId", "==", userId).where("state", "==", 0).limit(NEW_CARD_LIMIT).get(),
-  ]);
+  const { reviewCards, learningCards, newCards } = await getVocabDueInfo(userId, utcOffsetMinutes);
 
-  const reviewCards = dueSnap.docs.filter((d) => (d.data().state as number) !== 0);
   const seenQuestion = new Set<string>();
-
   const questions: Array<{
     vocabCardId: string;
     learningLanguageWord: string;
@@ -35,40 +25,24 @@ export const getVocabSession = functions.https.onCall(async (data) => {
     isNew: boolean;
   }> = [];
 
-  for (const doc of reviewCards) {
-    const d = doc.data();
-    const key = `${d.learningLanguageWord}|${d.englishWord}`;
+  for (const card of [...reviewCards, ...learningCards, ...newCards]) {
+    const key = `${card.learningLanguageWord}|${card.englishWord}`;
     if (seenQuestion.has(key)) continue;
     seenQuestion.add(key);
     questions.push({
-      vocabCardId: doc.id,
-      learningLanguageWord: d.learningLanguageWord as string,
-      englishWord: d.englishWord as string,
-      isNew: false,
+      vocabCardId: card.id,
+      learningLanguageWord: card.learningLanguageWord,
+      englishWord: card.englishWord,
+      isNew: card.isNew,
     });
   }
-
-  for (const doc of newSnap.docs) {
-    const d = doc.data();
-    const key = `${d.learningLanguageWord}|${d.englishWord}`;
-    if (seenQuestion.has(key)) continue;
-    seenQuestion.add(key);
-    questions.push({
-      vocabCardId: doc.id,
-      learningLanguageWord: d.learningLanguageWord as string,
-      englishWord: d.englishWord as string,
-      isNew: true,
-    });
-  }
-
-  const totalQuestionCount = questions.length;
 
   return {
     assignmentId: "daily-vocab",
     type: "VOCAB",
     assignmentTitle: "Daily Vocab",
     teacher: "",
-    totalQuestionCount,
+    totalQuestionCount: questions.length,
     completedQuestionCount: 0,
     questions,
   };

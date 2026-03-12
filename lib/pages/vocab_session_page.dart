@@ -22,22 +22,28 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant VocabSessionPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.assignmentId != oldWidget.assignmentId) {
       _currentIndex = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(vocabSessionProvider.notifier).clear();
+        ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final sessionAsync = ref.watch(vocabSessionProvider);
-
-    if (sessionAsync.isLoading) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
-      });
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -80,6 +86,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
           data: (state) {
             final questions = state.questions;
             final session = state.session;
+            if (_currentIndex >= questions.length && questions.isNotEmpty) {
+              _currentIndex = 0;
+            }
             final currentIndex = _currentIndex;
 
             if (questions.isEmpty || currentIndex >= questions.length) {
