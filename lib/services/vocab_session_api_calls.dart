@@ -7,6 +7,7 @@ Future<VocabSessionData> getVocabSession({required String assignmentId, required
   final result = await callable.call({
     'assignmentId': assignmentId,
     'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
   final data = result.data;

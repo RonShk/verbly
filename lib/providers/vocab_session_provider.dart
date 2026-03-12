@@ -21,24 +21,28 @@ class VocabSessionState {
 /// Holds the day's session. Fetches once per assignment; list is updated when user rates.
 /// Not autoDispose so returning from home keeps the same list.
 class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
+  String? _lastAssignmentId;
+
   @override
   AsyncValue<VocabSessionState> build() => const AsyncValue.loading();
 
   /// Load session if not already loaded for today. Refetch when cache is empty or for a different day.
   Future<void> loadIfNeeded(String assignmentId) async {
+    _lastAssignmentId = assignmentId;
     final current = state.value;
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    if (current != null &&
-        current.sessionDateKey == todayKey &&
-        current.questions.isNotEmpty) {
+    if (current != null && current.sessionDateKey == todayKey && current.questions.isNotEmpty) {
       return;
     }
+
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
+    
       final session = await getVocabSession(
-        assignmentId: assignmentId,
-        userId: demoUserId,
+          assignmentId: assignmentId,
+          userId: demoUserId,
       );
+
       return VocabSessionState(
         session: session,
         questions: List.from(session.questions),
@@ -59,6 +63,12 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
       list.removeAt(index);
       list.add(q);
     }
+
+    if (list.isEmpty) {
+      _refetch();
+      return;
+    }
+
     state = AsyncValue.data(
       VocabSessionState(
         session: current.session,
@@ -68,13 +78,32 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
     );
   }
 
+  /// Re-fetch from server to pick up cards that became due during the session
+  /// (e.g. learning-step cards scheduled minutes into the future).
+  Future<void> _refetch() async {
+    final assignmentId = _lastAssignmentId;
+    if (assignmentId == null) return;
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final session = await getVocabSession(
+        assignmentId: assignmentId,
+        userId: demoUserId,
+      );
+      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+      return VocabSessionState(
+        session: session,
+        questions: List.from(session.questions),
+        sessionDateKey: todayKey,
+      );
+    });
+  }
+
   /// Clear so next open refetches (e.g. new day).
   void clear() {
     state = const AsyncValue.loading();
   }
 }
 
-final vocabSessionProvider =
-    NotifierProvider<VocabSessionNotifier, AsyncValue<VocabSessionState>>(
+final vocabSessionProvider = NotifierProvider<VocabSessionNotifier, AsyncValue<VocabSessionState>>(
   VocabSessionNotifier.new,
 );

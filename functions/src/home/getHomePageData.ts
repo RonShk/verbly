@@ -1,6 +1,5 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
 
 export const getHomePageData = functions.https.onCall(async (data) => {
   const userId = data?.userId;
@@ -11,12 +10,10 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     );
   }
 
-  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes: -(new Date().getTimezoneOffset());
+  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : -(new Date().getTimezoneOffset());
 
   const db = admin.firestore();
-  const nowTs = Timestamp.now();
 
-  // Compute today's date string in the user's timezone
   const offsetMs = utcOffsetMinutes * 60_000;
   const clientLocal = new Date(Date.now() + offsetMs);
   const todayStr = clientLocal.toISOString().substring(0, 10);
@@ -27,7 +24,7 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     day: "numeric",
   });
 
-  const [todoSnap, completedSnap, vocabSnap] = await Promise.all([
+  const [todoSnap, completedSnap] = await Promise.all([
     db.collection("user_todo_assignments")
       .where("userId", "==", userId)
       .get(),
@@ -35,18 +32,9 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       .where("userId", "==", userId)
       .where("assignmentDate", "==", todayStr)
       .get(),
-    db.collection("vocab_cards")
-      .where("userId", "==", userId)
-      .where("due", "<=", nowTs)
-      .get(),
   ]);
 
-  // Vocab due count
-  const reviewDue = vocabSnap.docs.filter((d) => (d.data().state as number) !== 0).length;
-  const newDue = vocabSnap.docs.filter((d) => (d.data().state as number) === 0).length;
-  const vocabDueCount = reviewDue + Math.min(newDue, 10);
-
-  // Build sets of which types are completed today and which have active todos
+  // --- Completed assignments today ---
   const completedTypes = new Set<string>();
   const completed: Array<Record<string, unknown>> = [];
 
@@ -60,32 +48,16 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       dueDate: "",
       totalQuestionCount: (d.totalQuestionCount as number) ?? 0,
       completedAt: "Today",
-      subtitle: `Daily ${type.charAt(0) + type.slice(1).toLowerCase()} • Done today`,
+      subtitle: `Daily ${type.charAt(0) + type.slice(1).toLowerCase()} \u2022 Done today`,
     });
   });
 
-  // Filter today's active todo assignments
-  const todayTodos = todoSnap.docs.filter((doc) => {
-    const d = doc.data();
-    return d.assignmentDate === todayStr;
-  });
-
+  // --- Active assignments ---
+  const todayTodos = todoSnap.docs.filter((doc) => doc.data().assignmentDate === todayStr);
   const activeTodayTypes = new Set<string>();
-
   const assignments: Array<Record<string, unknown>> = [];
 
-  // Always add vocab card first
-  assignments.push({
-    id: "daily-vocab",
-    type: "VOCAB",
-    teacher: "",
-    dueDate: todayLabel,
-    totalQuestionCount: vocabDueCount,
-    completedQuestionCount: 0,
-    buttonLabel: "Start",
-  });
-
-  // Add active translation/production assignments for today
+  // Translation / Production
   for (const doc of todayTodos) {
     const d = doc.data();
     const type = (d.type as string) ?? "";
@@ -104,7 +76,6 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     });
   }
 
-  // Add cards for types not yet started or completed today
   for (const type of ["TRANSLATION", "PRODUCTION"]) {
     if (!completedTypes.has(type) && !activeTodayTypes.has(type)) {
       assignments.push({
@@ -119,8 +90,5 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     }
   }
 
-  return {
-    assignments,
-    completed,
-  };
+  return { assignments, completed };
 });
