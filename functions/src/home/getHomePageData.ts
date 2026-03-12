@@ -1,6 +1,5 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { getVocabDueInfo } from "../utils/getVocabDueInfo";
 
 export const getHomePageData = functions.https.onCall(async (data) => {
   const userId = data?.userId;
@@ -25,7 +24,7 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     day: "numeric",
   });
 
-  const [todoSnap, completedSnap, vocabInfo] = await Promise.all([
+  const [todoSnap, completedSnap] = await Promise.all([
     db.collection("user_todo_assignments")
       .where("userId", "==", userId)
       .get(),
@@ -33,7 +32,6 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       .where("userId", "==", userId)
       .where("assignmentDate", "==", todayStr)
       .get(),
-    getVocabDueInfo(userId, utcOffsetMinutes),
   ]);
 
   // --- Completed assignments today ---
@@ -58,28 +56,6 @@ export const getHomePageData = functions.https.onCall(async (data) => {
   const todayTodos = todoSnap.docs.filter((doc) => doc.data().assignmentDate === todayStr);
   const activeTodayTypes = new Set<string>();
   const assignments: Array<Record<string, unknown>> = [];
-
-  // Vocab
-  if (vocabInfo.dueCount > 0) {
-    assignments.push({
-      id: "daily-vocab",
-      type: "VOCAB",
-      teacher: "",
-      dueDate: todayLabel,
-      totalQuestionCount: vocabInfo.dueCount,
-      completedQuestionCount: 0,
-      buttonLabel: "Start",
-    });
-  } else if (vocabInfo.hasCards) {
-    completed.push({
-      type: "VOCAB",
-      teacher: "",
-      dueDate: "",
-      totalQuestionCount: 0,
-      completedAt: "Today",
-      subtitle: "Daily Vocab \u2022 Done today",
-    });
-  }
 
   // Translation / Production
   for (const doc of todayTodos) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,11 +9,54 @@ import '../providers/home_page_provider.dart';
 import '../providers/vocab_session_provider.dart';
 import '../theme/app_colors.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  Timer? _midnightTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final vocabState = ref.read(vocabSessionProvider);
+      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+      final cache = vocabState.value;
+      final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
+      if (!hasTodayCache) {
+        ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
+      }
+      _scheduleMidnightTimer();
+    });
+  }
+
+  void _scheduleMidnightTimer() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    final duration = nextMidnight.difference(now);
+    _midnightTimer = Timer(duration, _onMidnight);
+  }
+
+  void _onMidnight() {
+    ref.read(vocabSessionProvider.notifier).clear();
+    ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
+    ref.invalidate(homePageDataProvider);
+    _scheduleMidnightTimer();
+  }
+
+  @override
+  void dispose() {
+    _midnightTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncData = ref.watch(homePageDataProvider);
     final vocabSession = ref.watch(vocabSessionProvider);
 
@@ -60,33 +105,43 @@ class HomePage extends ConsumerWidget {
     HomePageData data,
     AsyncValue<VocabSessionState> vocabSession,
   ) {
-    final vocabCache = vocabSession.value;
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    final hasTodayCache = vocabCache != null && vocabCache.sessionDateKey == todayKey;
-    final vocabDoneToday = hasTodayCache && vocabCache.questions.isEmpty;
+    final cache = vocabSession.value;
+    final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
+    final questionsCount = hasTodayCache ? cache.questions.length : 0;
+
+    final isLoading = vocabSession.isLoading;
+    final hasTodayAndEmpty = hasTodayCache && questionsCount == 0;
 
     final todoAssignments = <HomeAssignment>[];
     for (final a in data.assignments) {
-      if (a.id == 'daily-vocab') {
-        if (vocabDoneToday) continue;
-        final count = hasTodayCache ? vocabCache.questions.length: a.totalQuestionCount;
-        todoAssignments.add(HomeAssignment(
-          id: a.id,
-          type: a.type,
-          teacher: a.teacher,
-          dueDate: a.dueDate,
-          totalQuestionCount: count,
-          completedQuestionCount: 0,
-          buttonLabel: count == 0 ? 'Start' : 'Start',
-        ));
-      } else {
-        todoAssignments.add(a);
+      if (a.id == 'daily-vocab' || a.type == 'VOCAB') {
+        continue;
       }
+      todoAssignments.add(a);
+    }
+
+    final showVocabCompleted = !isLoading && hasTodayAndEmpty;
+    final showVocabAssignment = !showVocabCompleted;
+
+    if (showVocabAssignment) {
+      todoAssignments.insert(
+        0,
+        HomeAssignment(
+          id: 'daily-vocab',
+          type: 'VOCAB',
+          teacher: '',
+          dueDate: 'Today',
+          totalQuestionCount: questionsCount,
+          completedQuestionCount: 0,
+          buttonLabel: 'Start',
+        ),
+      );
     }
 
     final completed = <HomeCompletion>[
       ...data.completed,
-      if (vocabDoneToday)
+      if (showVocabCompleted)
         const HomeCompletion(
           type: 'VOCAB',
           teacher: '',
