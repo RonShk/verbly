@@ -2,7 +2,7 @@ import * as admin from "firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
 
 /** Priority bucket a word was selected from. */
-export type PriorityBucket = "new" | "recentFailure" | "hard" | "leech";
+export type PriorityBucket = "new" | "recentFailure" | "hard" | "leech" | "review";
 
 /** A word chosen for a session, with the bucket it came from. */
 export interface TargetWord {
@@ -77,7 +77,8 @@ export function getChallengeMix(totalSlots: number): {recentFailureLimit: number
  * - Aim for up to `maxWords` total (default 30).
  * - Aim for up to `newTarget` "new" words (default 15), where "new" =
  *   cards with state === 0 (FSRS New).
- * - Fill the remaining slots with a mix of leech, hard, and recentFailure words.
+ * - Fill the remaining slots with a mix of leech, hard, recentFailure, and review words.
+ * - Review words (state === 2, FSRS Review) are used as fallback when other buckets are empty.
  * - Use excludeWordKeys to avoid reusing words already used in the current session.
  */
 export async function selectTargetWordsForSession(userId: string, options: SelectTargetWordsOptions = {}): Promise<TargetWord[]> {
@@ -88,6 +89,15 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   const failureCutoff = new Date(now);
   failureCutoff.setDate(failureCutoff.getDate() - opts.recentFailureDays);
   const failureCutoffTs = Timestamp.fromDate(failureCutoff);
+
+  console.log("[selectTargetWordsForSession] start", {
+    userId,
+    maxWords: opts.maxWords,
+    newTarget: opts.newTarget,
+    recentFailureDays: opts.recentFailureDays,
+    failureCutoff: failureCutoff.toISOString(),
+    excludeWordKeysCount: excludeSet?.size ?? 0,
+  });
 
   type Doc = admin.firestore.DocumentSnapshot;
   const toTarget = (d: Doc, bucket: PriorityBucket): TargetWord => {
@@ -110,6 +120,8 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(newTarget)
     .get();
 
+  console.log("[selectTargetWordsForSession] new (state===0)", { count: newSnap.size });
+
   // 2–4) Challenge words: mix of recentFailure, hard, leech (limits from getChallengeMix)
   const challengeTarget = Math.max(0, opts.maxWords - opts.newTarget);
   const { recentFailureLimit, hardLimit, leechLimit } = getChallengeMix(challengeTarget);
@@ -122,12 +134,16 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(recentFailureLimit)
     .get();
 
+  console.log("[selectTargetWordsForSession] recentFailure (lastFailureAt >= cutoff)", { count: recentFailureSnap.size });
+
   const hardSnap = await db
     .collection("vocab_cards")
     .where("userId", "==", userId)
     .where("hardTag", "==", true)
     .limit(hardLimit)
     .get();
+
+  console.log("[selectTargetWordsForSession] hard (hardTag===true)", { count: hardSnap.size });
 
   const leechSnap = await db
     .collection("vocab_cards")
@@ -136,13 +152,26 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(leechLimit)
     .get();
 
+  console.log("[selectTargetWordsForSession] leech (leechTag===true)", { count: leechSnap.size });
+
+  // 5) Review words (state === 2) — fallback so translation/production have words when no new/fail/hard/leech
+  const reviewSnap = await db
+    .collection("vocab_cards")
+    .where("userId", "==", userId)
+    .where("state", "==", 2)
+    .orderBy("createdAt", "desc")
+    .limit(opts.maxWords)
+    .get();
+
+  console.log("[selectTargetWordsForSession] review (state===2)", { count: reviewSnap.size });
+
   const byKey = new Map<string, TargetWord>();
 
-  // Priority when a word appears in multiple buckets: leech > hard > recentFailure > new
+  // Priority when a word appears in multiple buckets: leech > hard > recentFailure > new > review
   const assign = (w: TargetWord) => {
     const key = wordKey(w);
     const existing = byKey.get(key);
-    const order: PriorityBucket[] = ["leech", "hard", "recentFailure", "new"];
+    const order: PriorityBucket[] = ["leech", "hard", "recentFailure", "new", "review"];
     if (!existing || order.indexOf(w.priorityBucket) < order.indexOf(existing.priorityBucket)) {
       byKey.set(key, w);
     }
@@ -152,16 +181,29 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   recentFailureSnap.docs.forEach((d) => assign(toTarget(d, "recentFailure")));
   hardSnap.docs.forEach((d) => assign(toTarget(d, "hard")));
   leechSnap.docs.forEach((d) => assign(toTarget(d, "leech")));
+  reviewSnap.docs.forEach((d) => assign(toTarget(d, "review")));
+
+  console.log("[selectTargetWordsForSession] after merge by key", { uniqueCount: byKey.size });
 
   let all = Array.from(byKey.values());
   if (excludeSet && excludeSet.size > 0) {
     all = all.filter((w) => !excludeSet.has(wordKey(w)));
+    console.log("[selectTargetWordsForSession] after excludeWordKeys", { count: all.length });
   }
 
   const fromNew = all.filter((w) => w.priorityBucket === "new");
   const fromFailuresAndHard: TargetWord[] = all.filter(
-    (w) => w.priorityBucket === "recentFailure" || w.priorityBucket === "hard" || w.priorityBucket === "leech"
+    (w) =>
+      w.priorityBucket === "recentFailure" ||
+      w.priorityBucket === "hard" ||
+      w.priorityBucket === "leech" ||
+      w.priorityBucket === "review"
   );
+
+  console.log("[selectTargetWordsForSession] buckets", {
+    fromNew: fromNew.length,
+    fromFailuresAndHard: fromFailuresAndHard.length,
+  });
 
   // 6) Pick up to newTarget from "new".
   const picked: TargetWord[] = [];
@@ -174,7 +216,13 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   }
 
   const shuffled = shuffle(picked);
-  return shuffled.slice(0, Math.min(opts.maxWords, picked.length));
+  const result = shuffled.slice(0, Math.min(opts.maxWords, picked.length));
+  console.log("[selectTargetWordsForSession] result", {
+    pickedLength: picked.length,
+    remainingSlots,
+    returnedCount: result.length,
+  });
+  return result;
 }
 
 
