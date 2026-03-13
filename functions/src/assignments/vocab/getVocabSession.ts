@@ -3,7 +3,10 @@ import * as admin from "firebase-admin";
 
 const db = admin.firestore();
 
-const NEW_CARD_LIMIT = 10;
+/** Max new cards per day: 5 new + up to 10 learning/review = 15 total. */
+const NEW_CARD_LIMIT = 5;
+/** Total cards in one daily session. We always fill up to this when possible. */
+const DAILY_SESSION_CAP = 15;
 
 interface VocabCard {
   id: string;
@@ -19,9 +22,9 @@ interface VocabDueInfo {
   dueCount: number;
   /** Review cards (state 2) due by end of today. */
   reviewCards: VocabCard[];
-  /** Learning / Relearning cards (state 1 or 3) — always included. */
+  /** Learning / Relearning cards (state 1 or 3) — always included first in session. */
   learningCards: VocabCard[];
-  /** New cards (state 0), capped at 10. */
+  /** New cards (state 0), capped at NEW_CARD_LIMIT (5). */
   newCards: VocabCard[];
 }
 
@@ -97,6 +100,10 @@ export const getVocabSession = functions.https.onCall(async (data) => {
 
   const { reviewCards, learningCards, newCards } = await getVocabDueInfo(userId, utcOffsetMinutes);
 
+  // Priority: learning (all) → new (up to NEW_CARD_LIMIT) → review (fill to DAILY_SESSION_CAP).
+  const newSlice = newCards.slice(0, NEW_CARD_LIMIT);
+  const orderedCards = [...learningCards, ...newSlice, ...reviewCards];
+
   const seenQuestion = new Set<string>();
   const questions: Array<{
     vocabCardId: string;
@@ -105,7 +112,8 @@ export const getVocabSession = functions.https.onCall(async (data) => {
     isNew: boolean;
   }> = [];
 
-  for (const card of [...reviewCards, ...learningCards, ...newCards]) {
+  for (const card of orderedCards) {
+    if (questions.length >= DAILY_SESSION_CAP) break;
     const key = `${card.learningLanguageWord}|${card.englishWord}`;
     if (seenQuestion.has(key)) continue;
     seenQuestion.add(key);
