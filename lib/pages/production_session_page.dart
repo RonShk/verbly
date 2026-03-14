@@ -41,9 +41,22 @@ class _ProductionSessionPageState
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: sessionAsync.when(
-          loading: () => const Center(
-            child:
-                CircularProgressIndicator(color: AppColors.blueHighlighted),
+          loading: () => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(color: AppColors.blueHighlighted),
+                const SizedBox(height: 24),
+                Text(
+                  'We are generating your assignments.\nPlease wait — this may take 5–10 seconds.',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
           error: (err, _) => Center(
             child: Padding(
