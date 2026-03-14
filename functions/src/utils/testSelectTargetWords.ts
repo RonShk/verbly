@@ -5,11 +5,11 @@
  *   # Using ts-node directly
  *   npx ts-node --compilerOptions '{"module":"CommonJS","moduleResolution":"node"}' src/utils/testSelectTargetWords.ts demo_user
  *
- *   # Or via npm script (see package.json): 
+ *   # Or via npm script (see package.json):
  *   npm run test:select-target-words -- demo_user
  */
 import * as admin from "firebase-admin";
-import { selectTargetWordsForSession } from "./selectTargetWordsForSession";
+import {selectTargetWordsForSession} from "./selectTargetWordsForSession";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({

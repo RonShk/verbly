@@ -44,7 +44,7 @@ async function getVocabDueInfo(userId: string, utcOffsetMinutes = 0): Promise<Vo
   const snap = await db.collection("vocab_cards").where("userId", "==", userId).get();
 
   if (snap.empty) {
-    return { hasCards: false, dueCount: 0, reviewCards: [], learningCards: [], newCards: [] };
+    return {hasCards: false, dueCount: 0, reviewCards: [], learningCards: [], newCards: []};
   }
 
   const cutoff = endOfUserDay(utcOffsetMinutes);
@@ -81,10 +81,13 @@ async function getVocabDueInfo(userId: string, utcOffsetMinutes = 0): Promise<Vo
   const cappedNew = newCards.slice(0, NEW_CARD_LIMIT);
   const dueCount = reviewCards.length + learningCards.length + cappedNew.length;
 
-  return { hasCards: true, dueCount, reviewCards, learningCards, newCards: cappedNew };
+  return {hasCards: true, dueCount, reviewCards, learningCards, newCards: cappedNew};
 }
 
-export const getVocabSession = functions.https.onCall(async (data) => {
+export const getVocabSession = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const assignmentId = data?.assignmentId;
   const userId = data?.userId;
   if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
@@ -94,11 +97,11 @@ export const getVocabSession = functions.https.onCall(async (data) => {
     );
   }
 
-  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number"
-    ? data.timezoneOffsetMinutes
-    : 0;
+  const utcOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ?
+    data.timezoneOffsetMinutes :
+    0;
 
-  const { reviewCards, learningCards, newCards } = await getVocabDueInfo(userId, utcOffsetMinutes);
+  const {reviewCards, learningCards, newCards} = await getVocabDueInfo(userId, utcOffsetMinutes);
 
   // Priority: learning (all) → new (up to NEW_CARD_LIMIT) → review (fill to DAILY_SESSION_CAP).
   const newSlice = newCards.slice(0, NEW_CARD_LIMIT);

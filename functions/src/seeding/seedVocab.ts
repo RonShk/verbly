@@ -8,7 +8,7 @@
  * gcloud auth application-default login).
  */
 import * as admin from "firebase-admin";
-import { getWeekBounds } from "../utils/getWeekBounds";
+import {getWeekBounds} from "../utils/getWeekBounds";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({
@@ -22,18 +22,18 @@ const Timestamp = admin.firestore.Timestamp;
 
 /** Spanish (learning language) → English vocab pairs for demo. */
 const SPANISH_VOCAB_WORDS: Array<{ learningLanguageWord: string; englishWord: string }> = [
-  { learningLanguageWord: "hola", englishWord: "hello" },
-  { learningLanguageWord: "adiós", englishWord: "goodbye" },
-  { learningLanguageWord: "gracias", englishWord: "thank you" },
-  { learningLanguageWord: "por favor", englishWord: "please" },
-  { learningLanguageWord: "sí", englishWord: "yes" },
-  { learningLanguageWord: "no", englishWord: "no" },
-  { learningLanguageWord: "agua", englishWord: "water" },
-  { learningLanguageWord: "comida", englishWord: "food" },
-  { learningLanguageWord: "casa", englishWord: "house" },
-  { learningLanguageWord: "libro", englishWord: "book" },
-  { learningLanguageWord: "amigo", englishWord: "friend" },
-  { learningLanguageWord: "tiempo", englishWord: "time" },
+  {learningLanguageWord: "hola", englishWord: "hello"},
+  {learningLanguageWord: "adiós", englishWord: "goodbye"},
+  {learningLanguageWord: "gracias", englishWord: "thank you"},
+  {learningLanguageWord: "por favor", englishWord: "please"},
+  {learningLanguageWord: "sí", englishWord: "yes"},
+  {learningLanguageWord: "no", englishWord: "no"},
+  {learningLanguageWord: "agua", englishWord: "water"},
+  {learningLanguageWord: "comida", englishWord: "food"},
+  {learningLanguageWord: "casa", englishWord: "house"},
+  {learningLanguageWord: "libro", englishWord: "book"},
+  {learningLanguageWord: "amigo", englishWord: "friend"},
+  {learningLanguageWord: "tiempo", englishWord: "time"},
 ];
 
 /** Fisher–Yates shuffle (returns a new array). */
@@ -47,7 +47,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 async function runSeedVocab(): Promise<void> {
-  const { start: weekStart, end: weekEnd } = getWeekBounds();
+  const {start: weekStart, end: weekEnd} = getWeekBounds();
   const userId = "demo_user";
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);

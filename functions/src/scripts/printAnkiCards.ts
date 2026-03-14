@@ -62,7 +62,7 @@ interface ParsedNote {
 
 function parseAnkiNotes(dbPath: string): { parsed: ParsedNote[]; collectionCreationMs: number } {
   const resolved = path.resolve(dbPath);
-  const sqlite = new Database(resolved, { readonly: true });
+  const sqlite = new Database(resolved, {readonly: true});
 
   const crtRow = sqlite.prepare("SELECT crt FROM col").get() as { crt: number } | undefined;
   if (!crtRow) {
@@ -145,7 +145,7 @@ function parseAnkiNotes(dbPath: string): { parsed: ParsedNote[]; collectionCreat
   }
 
   sqlite.close();
-  return { parsed, collectionCreationMs };
+  return {parsed, collectionCreationMs};
 }
 
 async function main(): Promise<void> {
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
   }
 
   console.log("Reading Anki collection...");
-  const { parsed } = parseAnkiNotes(dbPath);
+  const {parsed} = parseAnkiNotes(dbPath);
   console.log(`Unique notes (word pairs): ${parsed.length}\n`);
 
   const now = Timestamp.now();

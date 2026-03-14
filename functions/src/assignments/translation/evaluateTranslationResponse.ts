@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { z } from "zod";
-import { generateStructured } from "../../ai/geminiClient";
-import { updateAssignmentProgress } from "../../utils/assignmentProgress";
-import { TranslationPrompts } from "./prompts";
+import {z} from "zod";
+import {generateStructured} from "../../ai/geminiClient";
+import {updateAssignmentProgress} from "../../utils/assignmentProgress";
+import {TranslationPrompts} from "./prompts";
 
 const db = admin.firestore();
 
@@ -27,7 +27,10 @@ const EvaluationSchema = z.object({
   ),
 });
 
-export const evaluateTranslationResponse = functions.https.onCall(async (data) => {
+export const evaluateTranslationResponse = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const assignmentId = data?.assignmentId;
   const userId = data?.userId;
   const questionIndex = data?.questionIndex;
@@ -101,9 +104,9 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data) =
       studentAnswer: "(skipped)",
       aiEvaluation: null,
     };
-    await questionSetRef.update({ questions });
+    await questionSetRef.update({questions});
 
-    const { assignmentCompleted } = await updateAssignmentProgress(
+    const {assignmentCompleted} = await updateAssignmentProgress(
       assignmentRef,
       {
         type: assignment.type as string,
@@ -145,9 +148,9 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data) =
     aiEvaluation: evaluation,
   };
 
-  await questionSetRef.update({ questions });
+  await questionSetRef.update({questions});
 
-  const { assignmentCompleted } = await updateAssignmentProgress(
+  const {assignmentCompleted} = await updateAssignmentProgress(
     assignmentRef,
     {
       type: assignment.type as string,

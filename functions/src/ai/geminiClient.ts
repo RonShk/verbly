@@ -3,7 +3,7 @@ import {
   ThinkingLevel,
   type GenerateContentConfig,
 } from "@google/genai";
-import { z } from "zod";
+import {z} from "zod";
 
 let _client: GoogleGenAI | null = null;
 
@@ -17,7 +17,7 @@ function getClient(): GoogleGenAI {
     );
   }
 
-  _client = new GoogleGenAI({ apiKey });
+  _client = new GoogleGenAI({apiKey});
   return _client;
 }
 
@@ -47,7 +47,7 @@ export async function generateStructured<T>(prompt: string, schema: z.ZodType<T>
       responseMimeType: "application/json",
       responseJsonSchema: jsonSchema,
     },
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [{role: "user", parts: [{text: prompt}]}],
   });
 
   const text = response.text;

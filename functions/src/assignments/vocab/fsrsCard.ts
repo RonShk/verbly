@@ -1,6 +1,6 @@
-import type { Card } from "ts-fsrs";
-import { createEmptyCard, fsrs, Rating, State } from "ts-fsrs";
-import type { Timestamp } from "firebase-admin/firestore";
+import type {Card} from "ts-fsrs";
+import {createEmptyCard, fsrs, Rating, State} from "ts-fsrs";
+import type {Timestamp} from "firebase-admin/firestore";
 
 /** Firestore vocab_cards document fields (FSRS + app fields). */
 export interface VocabCardDoc {

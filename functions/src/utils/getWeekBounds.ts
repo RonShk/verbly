@@ -32,5 +32,5 @@ export function getWeekBounds(utcOffsetMinutes?: number): {
   // End = Sunday 23:59:59.999 in client's local time
   const endMs = startMs + 7 * 24 * 3_600_000 - 1;
 
-  return { start: new Date(startMs), end: new Date(endMs) };
+  return {start: new Date(startMs), end: new Date(endMs)};
 }
