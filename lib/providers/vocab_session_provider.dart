@@ -10,25 +10,25 @@ class VocabSessionState {
     required this.session,
     required this.questions,
     required this.sessionDateKey,
+    this.completedQuestionCount = 0,
   });
 
   final VocabSessionData session;
   final List<VocabQuestion> questions;
   /// Calendar date key (YYYY-MM-DD) in the user's local timezone for which this session was loaded.
   final String sessionDateKey;
+  /// Number of questions completed this session (rated and no longer due today). Used so progress shows 1/15, 2/15, etc. instead of 0/14, 0/13.
+  final int completedQuestionCount;
 }
 
 /// Holds the day's session. Fetches once per assignment; list is updated when user rates.
 /// Not autoDispose so returning from home keeps the same list.
 class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
-  String? _lastAssignmentId;
-
   @override
   AsyncValue<VocabSessionState> build() => const AsyncValue.loading();
 
   /// Load session if not already loaded for today. Refetch when cache is empty or for a different day.
   Future<void> loadIfNeeded(String assignmentId) async {
-    _lastAssignmentId = assignmentId;
     final current = state.value;
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
     if (current != null && current.sessionDateKey == todayKey && current.questions.isNotEmpty) {
@@ -47,6 +47,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
         session: session,
         questions: List.from(session.questions),
         sessionDateKey: todayKey,
+        completedQuestionCount: session.completedQuestionCount,
       );
     });
   }
@@ -64,8 +65,18 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
       list.add(q);
     }
 
+    final newCompleted = !stillDueToday ? current.completedQuestionCount + 1 : current.completedQuestionCount;
+
     if (list.isEmpty) {
-      _refetch();
+      // User just finished the session; don't refetch (server might return more due cards and "reset").
+      state = AsyncValue.data(
+        VocabSessionState(
+          session: current.session,
+          questions: const [],
+          sessionDateKey: current.sessionDateKey,
+          completedQuestionCount: newCompleted,
+        ),
+      );
       return;
     }
 
@@ -74,28 +85,9 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
         session: current.session,
         questions: list,
         sessionDateKey: current.sessionDateKey,
+        completedQuestionCount: newCompleted,
       ),
     );
-  }
-
-  /// Re-fetch from server to pick up cards that became due during the session
-  /// (e.g. learning-step cards scheduled minutes into the future).
-  Future<void> _refetch() async {
-    final assignmentId = _lastAssignmentId;
-    if (assignmentId == null) return;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final session = await getVocabSession(
-        assignmentId: assignmentId,
-        userId: demoUserId,
-      );
-      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-      return VocabSessionState(
-        session: session,
-        questions: List.from(session.questions),
-        sessionDateKey: todayKey,
-      );
-    });
   }
 
   /// Clear so next open refetches (e.g. new day).

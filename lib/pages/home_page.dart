@@ -108,10 +108,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
     final cache = vocabSession.value;
     final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
-    final questionsCount = hasTodayCache ? cache.questions.length : 0;
+    final totalCount = hasTodayCache ? cache.session.totalQuestionCount : 0;
+    final completedCount = hasTodayCache ? cache.completedQuestionCount : 0;
 
     final isLoading = vocabSession.isLoading;
-    final hasTodayAndEmpty = hasTodayCache && questionsCount == 0;
+    final hasTodayAndEmpty = hasTodayCache && cache.questions.isEmpty;
 
     final todoAssignments = <HomeAssignment>[];
     for (final a in data.assignments) {
@@ -132,9 +133,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           type: 'VOCAB',
           teacher: '',
           dueDate: 'Today',
-          totalQuestionCount: questionsCount,
-          completedQuestionCount: 0,
-          buttonLabel: 'Start',
+          totalQuestionCount: totalCount,
+          completedQuestionCount: completedCount,
+          buttonLabel: completedCount > 0 ? 'Continue' : 'Start',
         ),
       );
     }
@@ -148,7 +149,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           dueDate: '',
           totalQuestionCount: 0,
           completedAt: '',
-          subtitle: 'Daily Vocab • Done today',
+          subtitle: '',
         ),
     ];
 
@@ -246,6 +247,23 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  void _onContinueCompleted(BuildContext context, String type) {
+    switch (type) {
+      case 'VOCAB':
+        ref.read(vocabSessionProvider.notifier).clear();
+        context.go('/assignment/vocab/daily-vocab');
+        break;
+      case 'TRANSLATION':
+        context.go('/assignment/translation/daily-translation');
+        break;
+      case 'PRODUCTION':
+        context.go('/assignment/production/daily-production');
+        break;
+      default:
+        break;
+    }
+  }
+
   Widget _buildCompletedSection(BuildContext context, List<HomeCompletion> completed) {
     if (completed.isEmpty) return const SizedBox(height: 24);
     return Column(
@@ -272,7 +290,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
         ...completed.map((c) => _CompletedItem(
               title: c.type,
-              subtitle: c.subtitle ?? 'Assigned by ${c.teacher} • Completed ${c.completedAt}',
+              subtitle: '',
+              onContinue: () => _onContinueCompleted(context, c.type),
             )),
         const SizedBox(height: 24),
       ],
@@ -410,10 +429,12 @@ class _CompletedItem extends StatelessWidget {
   const _CompletedItem({
     required this.title,
     required this.subtitle,
+    this.onContinue,
   });
 
   final String title;
   final String subtitle;
+  final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -433,10 +454,10 @@ class _CompletedItem extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.success.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.success.withValues(alpha: 0.15),
                   ),
-                  child: const Icon(Icons.check, color: AppColors.success, size: 16),
+                  child: const Icon(Icons.check_circle, color: AppColors.success, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -451,25 +472,55 @@ class _CompletedItem extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: AppColors.navbarInactive,
-                          fontSize: 11,
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: AppColors.navbarInactive,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
+                if (onContinue != null)
+                  TextButton(
+                    onPressed: onContinue,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.button,
+                      backgroundColor: AppColors.button.withValues(alpha: 0.1),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(color: AppColors.button.withValues(alpha: 0.2)),
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: Size.zero,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Continue Review',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(Icons.history, size: 16),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
           Positioned.fill(
-            child: CustomPaint(
-              painter: _DashedRectPainter(
-                color: AppColors.completedTabsBorder,
-                borderRadius: 12,
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _DashedRectPainter(
+                  color: AppColors.completedTabsBorder,
+                  borderRadius: 12,
+                ),
               ),
             ),
           ),

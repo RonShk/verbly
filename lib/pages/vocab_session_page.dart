@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
 import '../models/vocab_session_models.dart';
+import '../providers/home_page_provider.dart';
 import '../providers/vocab_session_provider.dart';
 import '../services/vocab_session_api_calls.dart';
 import '../theme/app_colors.dart';
@@ -105,7 +106,10 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () => context.go('/home'),
+                      onPressed: () {
+                        ref.invalidate(homePageDataProvider);
+                        context.go('/home');
+                      },
                       style: FilledButton.styleFrom(
                           backgroundColor: AppColors.button),
                       child: const Text('Back to Home'),
@@ -116,10 +120,12 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             }
 
             final q = questions[currentIndex];
+            final total = session.totalQuestionCount;
+            final currentPosition = state.completedQuestionCount + 1;
 
             return Column(
               children: [
-                _buildHeader(context, session.assignmentTitle),
+                _buildHeader(context, session.assignmentTitle, currentPosition, total),
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -138,40 +144,80 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, String title) {
+  Widget _buildHeader(
+    BuildContext context,
+    String title,
+    int currentPosition,
+    int totalCount,
+  ) {
+    final progress = totalCount > 0 ? (currentPosition / totalCount).clamp(0.0, 1.0) : 0.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            color: Colors.white.withValues(alpha: 0.9),
-            onPressed: () => context.go('/home'),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close),
+                color: Colors.white.withValues(alpha: 0.9),
+                onPressed: () {
+                  ref.invalidate(homePageDataProvider);
+                  context.go('/home');
+                },
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      'ACADEMIC PRACTICE',
+                      style: TextStyle(
+                        color: AppColors.blueHighlighted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
           ),
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  'ACADEMIC PRACTICE',
-                  style: TextStyle(
-                    color: AppColors.blueHighlighted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.cardBorder,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
                   ),
                 ),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '$currentPosition / $totalCount',
+                style: TextStyle(
+                  color: AppColors.navbarInactive,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 48),
         ],
       ),
     );
@@ -312,12 +358,13 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     int currentCardIndex,
     int rating,
   ) async {
+    final state = ref.read(vocabSessionProvider).value;
     final result = await recordVocabResponse(
       userId: demoUserId,
       vocabCardId: q.vocabCardId,
       rating: rating,
-      totalQuestionCount: ref.read(vocabSessionProvider).value?.questions.length ?? 0,
-      completedQuestionCount: currentCardIndex + 1,
+      totalQuestionCount: state?.session.totalQuestionCount ?? 0,
+      completedQuestionCount: (state?.completedQuestionCount ?? 0) + 1,
     );
     if (!context.mounted) return;
     ref.read(vocabSessionProvider.notifier).applyRating(

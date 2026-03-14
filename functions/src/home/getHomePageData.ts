@@ -34,34 +34,14 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       .get(),
   ]);
 
-  // --- Completed assignments today ---
-  const completedTypes = new Set<string>();
-  const completed: Array<Record<string, unknown>> = [];
-
-  completedSnap.docs.forEach((doc) => {
-    const d = doc.data();
-    const type = (d.type as string) ?? "";
-    completedTypes.add(type);
-    completed.push({
-      type,
-      teacher: (d.teacher as string) ?? "",
-      dueDate: "",
-      totalQuestionCount: (d.totalQuestionCount as number) ?? 0,
-      completedAt: "Today",
-      subtitle: `Daily ${type.charAt(0) + type.slice(1).toLowerCase()} \u2022 Done today`,
-    });
-  });
-
-  // --- Active assignments ---
+  // --- Active assignments first (they take priority over completed) ---
   const todayTodos = todoSnap.docs.filter((doc) => doc.data().assignmentDate === todayStr);
   const activeTodayTypes = new Set<string>();
   const assignments: Array<Record<string, unknown>> = [];
 
-  // Translation / Production
   for (const doc of todayTodos) {
     const d = doc.data();
     const type = (d.type as string) ?? "";
-    if (completedTypes.has(type)) continue;
     activeTodayTypes.add(type);
 
     const completedQuestionCount = (d.completedQuestionCount as number) ?? 0;
@@ -77,7 +57,7 @@ export const getHomePageData = functions.https.onCall(async (data) => {
   }
 
   for (const type of ["TRANSLATION", "PRODUCTION"]) {
-    if (!completedTypes.has(type) && !activeTodayTypes.has(type)) {
+    if (!activeTodayTypes.has(type)) {
       assignments.push({
         id: `daily-${type.toLowerCase()}`,
         type,
@@ -89,6 +69,23 @@ export const getHomePageData = functions.https.onCall(async (data) => {
       });
     }
   }
+
+  // --- Completed assignments (only if no active todo exists for that type) ---
+  const completed: Array<Record<string, unknown>> = [];
+
+  completedSnap.docs.forEach((doc) => {
+    const d = doc.data();
+    const type = (d.type as string) ?? "";
+    if (activeTodayTypes.has(type)) return;
+    completed.push({
+      type,
+      teacher: (d.teacher as string) ?? "",
+      dueDate: "",
+      totalQuestionCount: (d.totalQuestionCount as number) ?? 0,
+      completedAt: "Today",
+      subtitle: "",
+    });
+  });
 
   return { assignments, completed };
 });

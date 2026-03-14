@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
 import '../models/production_session_models.dart';
+import '../providers/home_page_provider.dart';
 import '../providers/production_session_provider.dart';
 import '../services/production_session_api_calls.dart';
 import '../theme/app_colors.dart';
@@ -124,7 +125,10 @@ class _ProductionSessionPageState
           ),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () => context.go('/home'),
+            onPressed: () {
+              ref.invalidate(homePageDataProvider);
+              context.go('/home');
+            },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.button),
             child: const Text('Back to Home'),
@@ -196,7 +200,10 @@ class _ProductionSessionPageState
               IconButton(
                 icon: const Icon(Icons.close),
                 color: Colors.white.withValues(alpha: 0.9),
-                onPressed: () => context.go('/home'),
+                onPressed: () {
+                  ref.invalidate(homePageDataProvider);
+                  context.go('/home');
+                },
               ),
               Expanded(
                 child: Column(
@@ -450,6 +457,7 @@ class _ProductionSessionPageState
       if (!mounted) return;
 
       if (result.assignmentCompleted) {
+        ref.invalidate(homePageDataProvider);
         context.go('/home');
         return;
       }
@@ -549,7 +557,10 @@ class _ProductionSessionPageState
           IconButton(
             icon: const Icon(Icons.close),
             color: Colors.white.withValues(alpha: 0.9),
-            onPressed: () => context.go('/home'),
+            onPressed: () {
+              ref.invalidate(homePageDataProvider);
+              context.go('/home');
+            },
           ),
           const Expanded(
             child: Center(
@@ -839,6 +850,7 @@ class _ProductionSessionPageState
         child: FilledButton(
           onPressed: () {
             if (result.assignmentCompleted) {
+              ref.invalidate(homePageDataProvider);
               context.go('/home');
               return;
             }
