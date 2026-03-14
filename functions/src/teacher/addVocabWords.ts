@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
-import { emptyVocabCardFields } from "../assignments/vocab/fsrsCard";
+import {Timestamp} from "firebase-admin/firestore";
+import {emptyVocabCardFields} from "../assignments/vocab/fsrsCard";
 
 const db = admin.firestore();
 
@@ -13,7 +13,10 @@ type VocabWord = { learningLanguageWord: string; englishWord: string };
  * Deduplicates by (learningLanguageWord, englishWord) so the same pair is never added twice.
  * Creates an FSRS vocab_cards doc for each new word.
  */
-export const addVocabWords = functions.https.onCall(async (data) => {
+export const addVocabWords = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const userId = data?.userId;
   const words = data?.words as VocabWord[] | undefined;
   const learningLanguage = (data?.learningLanguage as string) || "es";
@@ -37,7 +40,7 @@ export const addVocabWords = functions.https.onCall(async (data) => {
     const lang = w?.learningLanguageWord?.trim();
     const eng = w?.englishWord?.trim();
     if (lang && eng) {
-      validWords.push({ learningLanguageWord: lang, englishWord: eng });
+      validWords.push({learningLanguageWord: lang, englishWord: eng});
     }
   }
 

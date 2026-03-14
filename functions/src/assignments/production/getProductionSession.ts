@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { generateProductionQuestions } from "./generateProductionQuestions";
+import {generateProductionQuestions} from "./generateProductionQuestions";
 
 const db = admin.firestore();
 
@@ -10,11 +10,14 @@ function getTodayDateString(utcOffsetMinutes: number): string {
   return clientLocal.toISOString().substring(0, 10);
 }
 
-export const getProductionSession = functions.https.onCall(async (data) => {
+export const getProductionSession = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const userId = data?.userId;
-  const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number"
-    ? data.timezoneOffsetMinutes
-    : -(new Date().getTimezoneOffset());
+  const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ?
+    data.timezoneOffsetMinutes :
+    -(new Date().getTimezoneOffset());
 
   if (!userId || typeof userId !== "string") {
     throw new functions.https.HttpsError(

@@ -1,6 +1,5 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,9 +17,29 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  if (kDebugMode) {
-    FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
+  // Callable functions require an authenticated request. Sign in anonymously
+  // so the SDK sends an ID token; the functions still use userId from the body.
+  if (FirebaseAuth.instance.currentUser == null) {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'operation-not-allowed':
+          throw StateError(
+            'Anonymous auth is not enabled. Enable it in Firebase Console → Authentication → Sign-in method.',
+          );
+        default:
+          rethrow;
+      }
+    }
   }
+  // Ensure we have a user and a token so callables get an ID token.
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    throw StateError('Failed to sign in anonymously.');
+  }
+  // Force token to be ready so the first callable request is authenticated.
+  await user.getIdToken(true);
   runApp(const ProviderScope(child: MyApp()));
 }
 

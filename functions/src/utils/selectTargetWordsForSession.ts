@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
+import {Timestamp} from "firebase-admin/firestore";
 
 /** Priority bucket a word was selected from. */
 export type PriorityBucket = "new" | "recentFailure" | "hard" | "leech" | "review";
@@ -57,7 +57,7 @@ export function wordKey(w: { learningLanguageWord: string; englishWord: string }
  */
 export function getChallengeMix(totalSlots: number): {recentFailureLimit: number; hardLimit: number; leechLimit: number;} {
   if (totalSlots <= 0) {
-    return { recentFailureLimit: 0, hardLimit: 0, leechLimit: 0 };
+    return {recentFailureLimit: 0, hardLimit: 0, leechLimit: 0};
   }
 
   const a = Math.ceil(totalSlots / 3);
@@ -83,7 +83,7 @@ export function getChallengeMix(totalSlots: number): {recentFailureLimit: number
  */
 export async function selectTargetWordsForSession(userId: string, options: SelectTargetWordsOptions = {}): Promise<TargetWord[]> {
   const db = admin.firestore();
-  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const opts = {...DEFAULT_OPTIONS, ...options};
   const excludeSet = options.excludeWordKeys ? new Set(options.excludeWordKeys) : null;
   const now = new Date();
   const failureCutoff = new Date(now);
@@ -120,11 +120,11 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(newTarget)
     .get();
 
-  console.log("[selectTargetWordsForSession] new (state===0)", { count: newSnap.size });
+  console.log("[selectTargetWordsForSession] new (state===0)", {count: newSnap.size});
 
   // 2–4) Challenge words: mix of recentFailure, hard, leech (limits from getChallengeMix)
   const challengeTarget = Math.max(0, opts.maxWords - opts.newTarget);
-  const { recentFailureLimit, hardLimit, leechLimit } = getChallengeMix(challengeTarget);
+  const {recentFailureLimit, hardLimit, leechLimit} = getChallengeMix(challengeTarget);
 
   const recentFailureSnap = await db
     .collection("vocab_cards")
@@ -134,7 +134,7 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(recentFailureLimit)
     .get();
 
-  console.log("[selectTargetWordsForSession] recentFailure (lastFailureAt >= cutoff)", { count: recentFailureSnap.size });
+  console.log("[selectTargetWordsForSession] recentFailure (lastFailureAt >= cutoff)", {count: recentFailureSnap.size});
 
   const hardSnap = await db
     .collection("vocab_cards")
@@ -143,7 +143,7 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(hardLimit)
     .get();
 
-  console.log("[selectTargetWordsForSession] hard (hardTag===true)", { count: hardSnap.size });
+  console.log("[selectTargetWordsForSession] hard (hardTag===true)", {count: hardSnap.size});
 
   const leechSnap = await db
     .collection("vocab_cards")
@@ -152,7 +152,7 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(leechLimit)
     .get();
 
-  console.log("[selectTargetWordsForSession] leech (leechTag===true)", { count: leechSnap.size });
+  console.log("[selectTargetWordsForSession] leech (leechTag===true)", {count: leechSnap.size});
 
   // 5) Review words (state === 2) — fallback so translation/production have words when no new/fail/hard/leech
   const reviewSnap = await db
@@ -163,7 +163,7 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     .limit(opts.maxWords)
     .get();
 
-  console.log("[selectTargetWordsForSession] review (state===2)", { count: reviewSnap.size });
+  console.log("[selectTargetWordsForSession] review (state===2)", {count: reviewSnap.size});
 
   const byKey = new Map<string, TargetWord>();
 
@@ -183,12 +183,12 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   leechSnap.docs.forEach((d) => assign(toTarget(d, "leech")));
   reviewSnap.docs.forEach((d) => assign(toTarget(d, "review")));
 
-  console.log("[selectTargetWordsForSession] after merge by key", { uniqueCount: byKey.size });
+  console.log("[selectTargetWordsForSession] after merge by key", {uniqueCount: byKey.size});
 
   let all = Array.from(byKey.values());
   if (excludeSet && excludeSet.size > 0) {
     all = all.filter((w) => !excludeSet.has(wordKey(w)));
-    console.log("[selectTargetWordsForSession] after excludeWordKeys", { count: all.length });
+    console.log("[selectTargetWordsForSession] after excludeWordKeys", {count: all.length});
   }
 
   const fromNew = all.filter((w) => w.priorityBucket === "new");

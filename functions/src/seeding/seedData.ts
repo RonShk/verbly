@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { getWeekBounds } from "../utils/getWeekBounds";
+import {getWeekBounds} from "../utils/getWeekBounds";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({
@@ -12,13 +12,13 @@ const db = admin.firestore();
 const Timestamp = admin.firestore.Timestamp;
 
 async function runSeed(): Promise<void> {
-  const { start: weekStart, end: weekEnd } = getWeekBounds();
+  const {start: weekStart, end: weekEnd} = getWeekBounds();
   const userId = "demo_user";
 
   const todoPayloads = [
-    { userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
-    { userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
-    { userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now() },
+    {userId, type: "VOCAB", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 2 * 24 * 60 * 60 * 1000)), totalQuestionCount: 12, completedQuestionCount: 8, vocabListId: "", questionSetId: "", createdAt: Timestamp.now()},
+    {userId, type: "PRODUCTION", teacher: "Dr. Aris Thorne", dueDate: Timestamp.fromDate(weekEnd), totalQuestionCount: 3, completedQuestionCount: 2, vocabListId: "", questionSetId: "", createdAt: Timestamp.now()},
+    {userId, type: "TRANSLATION", teacher: "Prof. Elena Vance", dueDate: Timestamp.fromDate(new Date(weekEnd.getTime() - 12 * 60 * 60 * 1000)), totalQuestionCount: 1, completedQuestionCount: 0, vocabListId: "", questionSetId: "", createdAt: Timestamp.now()},
   ];
 
   for (const data of todoPayloads) {

@@ -1,9 +1,9 @@
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
-import { z } from "zod";
-import { generateStructured } from "../../ai/geminiClient";
-import { selectTargetWordsForSession } from "../../utils/selectTargetWordsForSession";
-import { TranslationPrompts } from "./prompts";
+import {Timestamp} from "firebase-admin/firestore";
+import {z} from "zod";
+import {generateStructured} from "../../ai/geminiClient";
+import {selectTargetWordsForSession} from "../../utils/selectTargetWordsForSession";
+import {TranslationPrompts} from "./prompts";
 
 const db = admin.firestore();
 
@@ -23,7 +23,7 @@ const TranslationResponseSchema = z.object({
  * the corresponding assignment and question set documents in Firestore.
  */
 export async function generateTranslationQuestions(userId: string, assignmentDate: string): Promise<{ assignmentId: string; questionSetId: string; totalQuestionCount: number }> {
-  const words = await selectTargetWordsForSession(userId, { maxWords: 30 });
+  const words = await selectTargetWordsForSession(userId, {maxWords: 30});
 
   if (words.length === 0) {
     throw new Error("No vocab words available. Add words before starting a translation session.");

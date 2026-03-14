@@ -9,9 +9,9 @@
  */
 import "dotenv/config";
 import * as admin from "firebase-admin";
-import { z } from "zod";
-import { generateStructured } from "../ai/geminiClient";
-import { getWeekBounds } from "../utils/getWeekBounds";
+import {z} from "zod";
+import {generateStructured} from "../ai/geminiClient";
+import {getWeekBounds} from "../utils/getWeekBounds";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({
@@ -27,18 +27,18 @@ const SPANISH_VOCAB_WORDS: Array<{
   learningLanguageWord: string;
   englishWord: string;
 }> = [
-  { learningLanguageWord: "hola", englishWord: "hello" },
-  { learningLanguageWord: "adiós", englishWord: "goodbye" },
-  { learningLanguageWord: "gracias", englishWord: "thank you" },
-  { learningLanguageWord: "por favor", englishWord: "please" },
-  { learningLanguageWord: "sí", englishWord: "yes" },
-  { learningLanguageWord: "no", englishWord: "no" },
-  { learningLanguageWord: "agua", englishWord: "water" },
-  { learningLanguageWord: "comida", englishWord: "food" },
-  { learningLanguageWord: "casa", englishWord: "house" },
-  { learningLanguageWord: "libro", englishWord: "book" },
-  { learningLanguageWord: "amigo", englishWord: "friend" },
-  { learningLanguageWord: "tiempo", englishWord: "time" },
+  {learningLanguageWord: "hola", englishWord: "hello"},
+  {learningLanguageWord: "adiós", englishWord: "goodbye"},
+  {learningLanguageWord: "gracias", englishWord: "thank you"},
+  {learningLanguageWord: "por favor", englishWord: "please"},
+  {learningLanguageWord: "sí", englishWord: "yes"},
+  {learningLanguageWord: "no", englishWord: "no"},
+  {learningLanguageWord: "agua", englishWord: "water"},
+  {learningLanguageWord: "comida", englishWord: "food"},
+  {learningLanguageWord: "casa", englishWord: "house"},
+  {learningLanguageWord: "libro", englishWord: "book"},
+  {learningLanguageWord: "amigo", englishWord: "friend"},
+  {learningLanguageWord: "tiempo", englishWord: "time"},
 ];
 
 const TranslationQuestionSchema = z.object({
@@ -51,7 +51,7 @@ const TranslationResponseSchema = z.object({
 });
 
 async function runSeedTranslation(): Promise<void> {
-  const { start: weekStart, end: weekEnd } = getWeekBounds();
+  const {start: weekStart, end: weekEnd} = getWeekBounds();
   const userId = "demo_user";
   const weekStartTs = Timestamp.fromDate(weekStart);
 

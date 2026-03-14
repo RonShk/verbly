@@ -9,11 +9,11 @@
  */
 import "dotenv/config";
 import * as admin from "firebase-admin";
-import { z } from "zod";
-import { generateStructured } from "../ai/geminiClient";
-import { getWeekBounds } from "../utils/getWeekBounds";
-import { ProductionPrompts } from "../assignments/production/prompts";
-import { TranslationPrompts } from "../assignments/translation/prompts";
+import {z} from "zod";
+import {generateStructured} from "../ai/geminiClient";
+import {getWeekBounds} from "../utils/getWeekBounds";
+import {ProductionPrompts} from "../assignments/production/prompts";
+import {TranslationPrompts} from "../assignments/translation/prompts";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({
@@ -33,14 +33,14 @@ const ProductionQuestionSchema = z.object({
   sentenceInNativeLanguage: z.string().describe(prodDescriptions.sentenceInNativeLanguage),
   vocabWordsUsed: z.array(z.string()).describe(prodDescriptions.vocabWordsUsed),
 });
-const ProductionResponseSchema = z.object({ questions: z.array(ProductionQuestionSchema) });
+const ProductionResponseSchema = z.object({questions: z.array(ProductionQuestionSchema)});
 
 const transDescriptions = TranslationPrompts.descriptions.generate;
 const TranslationQuestionSchema = z.object({
   sentenceInLearningLanguage: z.string().describe(transDescriptions.sentenceInLearningLanguage),
   vocabWordsUsed: z.array(z.string()).describe(transDescriptions.vocabWordsUsed),
 });
-const TranslationResponseSchema = z.object({ questions: z.array(TranslationQuestionSchema) });
+const TranslationResponseSchema = z.object({questions: z.array(TranslationQuestionSchema)});
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ async function upsertAssignment(
 
   if (!snap.empty) {
     const doc = snap.docs[0];
-    await doc.ref.update({ vocabListId, questionSetId, totalQuestionCount, completedQuestionCount: 0 });
+    await doc.ref.update({vocabListId, questionSetId, totalQuestionCount, completedQuestionCount: 0});
     console.log(`  Updated existing ${type} assignment: ${doc.id}`);
     return doc.id;
   }
@@ -88,7 +88,7 @@ async function upsertAssignment(
 // ── Main ───────────────────────────────────────────────────────────────
 
 async function run(): Promise<void> {
-  const { start: weekStart, end: weekEnd } = getWeekBounds();
+  const {start: weekStart, end: weekEnd} = getWeekBounds();
   const userId = "demo_user";
   const weekStartTs = Timestamp.fromDate(weekStart);
   const weekEndTs = Timestamp.fromDate(weekEnd);

@@ -1,7 +1,10 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
-export const getHomePageData = functions.https.onCall(async (data) => {
+export const getHomePageData = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const userId = data?.userId;
   if (!userId || typeof userId !== "string") {
     throw new functions.https.HttpsError(
@@ -87,5 +90,5 @@ export const getHomePageData = functions.https.onCall(async (data) => {
     });
   });
 
-  return { assignments, completed };
+  return {assignments, completed};
 });

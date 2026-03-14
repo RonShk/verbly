@@ -8,8 +8,8 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import { z } from "zod";
-import { generateStructured } from "./geminiClient";
+import {z} from "zod";
+import {generateStructured} from "./geminiClient";
 
 const translationResponseSchema = z.object({
   questions: z.array(
@@ -38,12 +38,12 @@ const productionResponseSchema = z.object({
 });
 
 const VOCAB_WORDS = [
-  { learningLanguageWord: "hola", englishWord: "hello" },
-  { learningLanguageWord: "casa", englishWord: "house" },
-  { learningLanguageWord: "libro", englishWord: "book" },
-  { learningLanguageWord: "agua", englishWord: "water" },
-  { learningLanguageWord: "amigo", englishWord: "friend" },
-  { learningLanguageWord: "tiempo", englishWord: "time" },
+  {learningLanguageWord: "hola", englishWord: "hello"},
+  {learningLanguageWord: "casa", englishWord: "house"},
+  {learningLanguageWord: "libro", englishWord: "book"},
+  {learningLanguageWord: "agua", englishWord: "water"},
+  {learningLanguageWord: "amigo", englishWord: "friend"},
+  {learningLanguageWord: "tiempo", englishWord: "time"},
 ];
 
 async function testTranslation(): Promise<void> {

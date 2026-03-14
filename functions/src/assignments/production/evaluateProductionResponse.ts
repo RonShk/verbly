@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { z } from "zod";
-import { generateStructured } from "../../ai/geminiClient";
-import { updateAssignmentProgress } from "../../utils/assignmentProgress";
-import { ProductionPrompts } from "./prompts";
+import {z} from "zod";
+import {generateStructured} from "../../ai/geminiClient";
+import {updateAssignmentProgress} from "../../utils/assignmentProgress";
+import {ProductionPrompts} from "./prompts";
 
 const db = admin.firestore();
 
@@ -30,7 +30,10 @@ const EvaluationSchema = z.object({
 });
 
 export const evaluateProductionResponse = functions.https.onCall(
-  async (data) => {
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+    }
     const assignmentId = data?.assignmentId;
     const userId = data?.userId;
     const questionIndex = data?.questionIndex;
@@ -90,29 +93,73 @@ export const evaluateProductionResponse = functions.https.onCall(
     const questions = questionSet.questions as Array<Record<string, unknown>>;
     const question = questions[questionIndex];
 
-  if (!question) {
-    throw new functions.https.HttpsError(
-      "not-found",
-      `Question at index ${questionIndex} not found.`
-    );
-  }
+    if (!question) {
+      throw new functions.https.HttpsError(
+        "not-found",
+        `Question at index ${questionIndex} not found.`
+      );
+    }
 
-  const totalQuestionCount = (assignment.totalQuestionCount as number) ?? 0;
-  let completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
-  completedQuestionCount = Math.min(completedQuestionCount + 1, totalQuestionCount);
+    const totalQuestionCount = (assignment.totalQuestionCount as number) ?? 0;
+    let completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
+    completedQuestionCount = Math.min(completedQuestionCount + 1, totalQuestionCount);
 
-  const isSkipped = studentAnswer.trim() === "(skipped)";
+    const isSkipped = studentAnswer.trim() === "(skipped)";
 
-  if (isSkipped) {
+    if (isSkipped) {
     // No AI call: just record the skip and update progress.
+      questions[questionIndex] = {
+        ...question,
+        studentAnswer: "(skipped)",
+        aiEvaluation: null,
+      };
+      await questionSetRef.update({questions});
+
+      const {assignmentCompleted} = await updateAssignmentProgress(
+        assignmentRef,
+        {
+          type: assignment.type as string,
+          teacher: assignment.teacher as string,
+          totalQuestionCount,
+          assignmentDate: assignment.assignmentDate as string | undefined,
+        },
+        userId,
+        completedQuestionCount
+      );
+
+      return {
+        score: 0,
+        feedback: "",
+        correctedVersion: "",
+        correctedVersionSegments: [],
+        explanations: [],
+        completedQuestionCount,
+        totalQuestionCount,
+        assignmentCompleted,
+        skipped: true,
+      };
+    }
+
+    const sentenceInNativeLanguage = question.sentenceInNativeLanguage as string;
+    const vocabWordsUsed = question.vocabWordsUsed as string[];
+
+    const prompt = ProductionPrompts.buildEvaluatePrompt(
+      sentenceInNativeLanguage,
+      vocabWordsUsed,
+      studentAnswer
+    );
+
+    const evaluation = await generateStructured(prompt, EvaluationSchema);
+
     questions[questionIndex] = {
       ...question,
-      studentAnswer: "(skipped)",
-      aiEvaluation: null,
+      studentAnswer,
+      aiEvaluation: evaluation,
     };
-    await questionSetRef.update({ questions });
 
-    const { assignmentCompleted } = await updateAssignmentProgress(
+    await questionSetRef.update({questions});
+
+    const {assignmentCompleted} = await updateAssignmentProgress(
       assignmentRef,
       {
         type: assignment.type as string,
@@ -125,58 +172,14 @@ export const evaluateProductionResponse = functions.https.onCall(
     );
 
     return {
-      score: 0,
-      feedback: "",
-      correctedVersion: "",
-      correctedVersionSegments: [],
-      explanations: [],
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+      correctedVersion: evaluation.correctedVersion,
+      correctedVersionSegments: evaluation.correctedVersionSegments ?? [],
+      explanations: evaluation.explanations,
       completedQuestionCount,
       totalQuestionCount,
       assignmentCompleted,
-      skipped: true,
+      skipped: false,
     };
-  }
-
-  const sentenceInNativeLanguage = question.sentenceInNativeLanguage as string;
-  const vocabWordsUsed = question.vocabWordsUsed as string[];
-
-  const prompt = ProductionPrompts.buildEvaluatePrompt(
-    sentenceInNativeLanguage,
-    vocabWordsUsed,
-    studentAnswer
-  );
-
-  const evaluation = await generateStructured(prompt, EvaluationSchema);
-
-  questions[questionIndex] = {
-    ...question,
-    studentAnswer,
-    aiEvaluation: evaluation,
-  };
-
-  await questionSetRef.update({ questions });
-
-  const { assignmentCompleted } = await updateAssignmentProgress(
-    assignmentRef,
-    {
-      type: assignment.type as string,
-      teacher: assignment.teacher as string,
-      totalQuestionCount,
-      assignmentDate: assignment.assignmentDate as string | undefined,
-    },
-    userId,
-    completedQuestionCount
-  );
-
-  return {
-    score: evaluation.score,
-    feedback: evaluation.feedback,
-    correctedVersion: evaluation.correctedVersion,
-    correctedVersionSegments: evaluation.correctedVersionSegments ?? [],
-    explanations: evaluation.explanations,
-    completedQuestionCount,
-    totalQuestionCount,
-    assignmentCompleted,
-    skipped: false,
-  };
-});
+  });

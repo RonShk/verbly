@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
-import type { Grade } from "ts-fsrs";
+import {Timestamp} from "firebase-admin/firestore";
+import type {Grade} from "ts-fsrs";
 import {
   docToCard,
   cardToUpdate,
@@ -26,7 +26,10 @@ function isStillDueToday(dueUtc: Date, nowUtc: Date, timezoneOffsetMinutes: numb
   return dueDay <= todayDay;
 }
 
-export const recordVocabResponse = functions.https.onCall(async (data) => {
+export const recordVocabResponse = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  }
   const userId = data?.userId;
   const vocabCardId = data?.vocabCardId;
   const rating = data?.rating;
@@ -72,7 +75,7 @@ export const recordVocabResponse = functions.https.onCall(async (data) => {
   const now = new Date();
   const grade = toRating(rating);
   const f = getFSRS();
-  const { card: nextCard } = f.next(card, now, grade as Grade);
+  const {card: nextCard} = f.next(card, now, grade as Grade);
 
   const update = cardToUpdate(nextCard, Timestamp);
 

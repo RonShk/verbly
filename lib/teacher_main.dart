@@ -1,6 +1,5 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
@@ -11,9 +10,25 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  if (kDebugMode) {
-    FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
+  if (FirebaseAuth.instance.currentUser == null) {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'operation-not-allowed':
+          throw StateError(
+            'Anonymous auth is not enabled. Enable it in Firebase Console → Authentication → Sign-in method.',
+          );
+        default:
+          rethrow;
+      }
+    }
   }
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    throw StateError('Failed to sign in anonymously.');
+  }
+  await user.getIdToken(true);
   runApp(const TeacherApp());
 }
 
