@@ -1,5 +1,7 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +19,16 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // Debug builds: callables hit the local Functions emulator (default port 5001).
+  if (kDebugMode) {
+    const functionsEmulatorPort = 5001;
+    if (kIsWeb) {
+      FirebaseFunctions.instance.useFunctionsEmulator('127.0.0.1', functionsEmulatorPort);
+    } else {
+      final host = defaultTargetPlatform == TargetPlatform.android ? '10.0.2.2' : '127.0.0.1';
+      FirebaseFunctions.instance.useFunctionsEmulator(host, functionsEmulatorPort);
+    }
+  }
   // Callable functions require an authenticated request. Sign in anonymously
   // so the SDK sends an ID token; the functions still use userId from the body.
   if (FirebaseAuth.instance.currentUser == null) {

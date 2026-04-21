@@ -2,7 +2,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/production_session_models.dart';
 
-Future<ProductionSessionData> getProductionSession({required String userId}) async {
+Future<ProductionSessionData> getProductionSession({
+  required String userId,
+}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getProductionSession');
   final result = await callable.call({
     'userId': userId,
