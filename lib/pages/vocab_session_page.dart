@@ -226,7 +226,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   Widget _buildCard(
       BuildContext context, VocabSessionData session, VocabQuestion q) {
     return GestureDetector(
-      onTap: () => setState(() => _isFlipped = !_isFlipped),
+      onTap: _isFlipped ? null : () => setState(() => _isFlipped = true),
       child: Container(
         width: double.infinity,
         height: MediaQuery.of(context).size.height * 0.55,
@@ -255,7 +255,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              _isFlipped ? 'ENGLISH TRANSLATION' : 'SPANISH',
+              'SPANISH',
               style: TextStyle(
                 color: AppColors.navbarInactive,
                 fontSize: 11,
@@ -264,7 +264,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              _isFlipped ? q.englishWord : q.learningLanguageWord,
+              q.learningLanguageWord,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -272,20 +272,40 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-            Icon(
-              _isFlipped ? Icons.rotate_right : Icons.touch_app,
-              size: 18,
-              color: AppColors.navbarInactive,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _isFlipped ? 'TAP TO FLIP BACK' : 'TAP TO FLIP',
-              style: TextStyle(
-                color: AppColors.navbarInactive,
-                fontSize: 11,
+            if (_isFlipped) ...[
+              const SizedBox(height: 24),
+              Divider(color: AppColors.cardBorder, thickness: 1),
+              const SizedBox(height: 24),
+              Text(
+                'ENGLISH TRANSLATION',
+                style: TextStyle(
+                  color: AppColors.navbarInactive,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                q.englishWord,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              const Icon(Icons.touch_app, size: 18, color: AppColors.navbarInactive),
+              const SizedBox(height: 2),
+              Text(
+                'TAP TO FLIP',
+                style: TextStyle(
+                  color: AppColors.navbarInactive,
+                  fontSize: 11,
+                ),
+              ),
+            ],
           ],
         ),
       ),
