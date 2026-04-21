@@ -65,6 +65,20 @@ export const ProductionPrompts = {
     "Each sentence should require the student to use 1-3 of the given Spanish vocabulary words when translating. " +
     "Sentences should: be written in natural English; be designed so the correct Spanish translation naturally uses the target vocab words; " +
     "range from simple to moderately complex; provide real-world context (formal introductions, business, daily life, etc.). " +
+    "STRICT VOCABULARY RULE: The correct Spanish translation must use ONLY words from the vocabulary pairs provided, plus the allowed function words listed below. " +
+    "Do NOT use any other Spanish content words (nouns, verbs, adjectives, adverbs) that are not in the vocabulary pairs. " +
+    "Allowed Spanish function words (and only these, beyond the vocab pairs): " +
+    "el, la, los, las, un, una, unos, unas, de, en, a, con, por, para, que, y, o, pero, no, sí, " +
+    "es, son, está, están, hay, ser, estar, " +
+    "yo, tú, él, ella, usted, nosotros, ellos, ellas, ustedes, " +
+    "me, te, se, le, lo, la, les, nos, " +
+    "mi, tu, su, mis, tus, sus, nuestro, nuestra, " +
+    "este, esta, estos, estas, ese, esa, " +
+    "muy, más, también, ya, aquí, allí, hoy, mañana, " +
+    "al, del, como, cuando, donde, porque, si, " +
+    "uno, dos, tres, cuatro, cinco, " +
+    "señor, señora, señorita. " +
+    "You may also use proper nouns (names of people, cities, countries). Nothing else in the Spanish translation. " +
     "Respond with the JSON object described by the schema.",
 
   /** Builds the full generate prompt with context. */
@@ -72,7 +86,7 @@ export const ProductionPrompts = {
     return (
       `${ProductionPrompts.generateHighLevel}\n\n` +
       `Given these Spanish-English vocabulary pairs: ${wordPairs}\n\n` +
-      `Generate ${count} such sentences.`
+      `Generate ${count} such sentences. Remember: Spanish translations must only use content words from the vocabulary pairs above.`
     );
   },
 } as const;
