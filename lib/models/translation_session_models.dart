@@ -6,6 +6,7 @@ class TranslationSessionData {
     required this.teacher,
     required this.totalQuestionCount,
     required this.completedQuestionCount,
+    required this.cumulativeOffsetQuestionCount,
     required this.questions,
   });
 
@@ -15,6 +16,12 @@ class TranslationSessionData {
   final String teacher;
   final int totalQuestionCount;
   final int completedQuestionCount;
+
+  /// Sum of [totalQuestionCount] across all already-completed Translation
+  /// assignments for today (0 for the first daily wave). Used by the session
+  /// page to render cumulative labels and to decide whether to fill the
+  /// progress bar to 100% (any wave with offset > 0).
+  final int cumulativeOffsetQuestionCount;
   final List<TranslationQuestion> questions;
 
   factory TranslationSessionData.fromJson(dynamic json) {
@@ -31,6 +38,7 @@ class TranslationSessionData {
       teacher: (json['teacher'] as String?) ?? '',
       totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
       completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
+      cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
       questions: (json['questions'] as List?)?.map((e) => TranslationQuestion.fromJson(e)).toList() ?? []
     );
   }

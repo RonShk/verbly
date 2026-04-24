@@ -105,9 +105,16 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () => context.go('/home'),
+                      onPressed: _onContinueReview,
                       style: FilledButton.styleFrom(
                           backgroundColor: AppColors.button),
+                      child: const Text('Continue Review'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => context.go('/home'),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.navbarInactive),
                       child: const Text('Back to Home'),
                     ),
                   ],
@@ -117,11 +124,23 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
 
             final q = questions[currentIndex];
             final total = session.totalQuestionCount;
-            final currentPosition = state.completedQuestionCount + 1;
+            // Cumulative label rule (matches Home and T/P):
+            //  - Wave 1 (offset == 0): keep "on card N" semantic (completed+1)
+            //    so the user reads "1/15" on the first card.
+            //  - Wave 2+ (offset > 0): straight cumulative, so a freshly
+            //    started wave reads "15/15" and bumps to "16/15" on first rate.
+            final isContinueReviewWave = state.cumulativeOffsetQuestionCount > 0;
+            final currentPosition = isContinueReviewWave ? state.cumulativeOffsetQuestionCount + state.completedQuestionCount : state.completedQuestionCount + 1;
 
             return Column(
               children: [
-                _buildHeader(context, session.assignmentTitle, currentPosition, total),
+                _buildHeader(
+                  context,
+                  session.assignmentTitle,
+                  currentPosition,
+                  total,
+                  isContinueReviewWave,
+                ),
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -145,8 +164,11 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     String title,
     int currentPosition,
     int totalCount,
+    bool isContinueReviewWave,
   ) {
-    final progress = totalCount > 0 ? (currentPosition / totalCount).clamp(0.0, 1.0) : 0.0;
+    // Bar rule: post–continue-review waves are always full; first wave fills
+    // proportionally to in-wave position.
+    final progress = isContinueReviewWave ? 1.0 : (totalCount > 0 ? (currentPosition / totalCount).clamp(0.0, 1.0) : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
@@ -362,6 +384,14 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _onContinueReview() async {
+    setState(() {
+      _isFlipped = false;
+      _currentIndex = 0;
+    });
+    await ref.read(vocabSessionProvider.notifier).startContinueReview(widget.assignmentId);
   }
 
   Future<void> _onRating(

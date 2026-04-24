@@ -110,6 +110,27 @@ functions/src/
 | `getHomePageData` | `home/getHomePageData.ts` | Queries `user_todo_assignments` and `user_completed_assignments` for the current week; returns summary, assignment cards, and completed items. |
 | `getVocabSession` | `assignments/vocab/getVocabSession.ts` | Loads the assignment's linked `vocab_lists` doc, shuffles words, returns the question list and progress counts. |
 | `recordVocabResponse` | `assignments/vocab/recordVocabResponse.ts` | Increments `completedQuestionCount`. When all questions are done, moves the assignment from `user_todo_assignments` to `user_completed_assignments` in a transaction. |
+| `getTranslationSession` | `assignments/translation/getTranslationSession.ts` | Lightweight Home status (placement, counts, `cumulativeOffsetQuestionCount`). Honors the `hideFromAssignmentsTabUntilFirstProgress` flag to keep unstarted Continue-Review waves under COMPLETED. Does NOT trigger AI generation. |
+| `startTranslationSession` | `assignments/translation/startTranslationSession.ts` | Hydrates a Translation assignment, lazily generating questions on first call. Idempotent per `questionSetId`. Returns `cumulativeOffsetQuestionCount`. |
+| `evaluateTranslationResponse` | `assignments/translation/evaluateTranslationResponse.ts` | Persists a student answer + AI evaluation, advances `completedQuestionCount`, and clears `hideFromAssignmentsTabUntilFirstProgress` on the first answered question. |
+| `prepareTranslationContinueReview` | `assignments/translation/prepareTranslationContinueReview.ts` | Idempotently creates a wave-2+ `user_todo_assignments` for today. Snapshots `cumulativeOffsetQuestionCount` from prior completed waves and sets `hideFromAssignmentsTabUntilFirstProgress: true`. AI generation runs lazily on the next `startTranslationSession`. |
+| `getProductionSession` / `startProductionSession` / `evaluateProductionResponse` / `prepareProductionContinueReview` | `assignments/production/*.ts` | Mirror images of the Translation callables for Production assignments. |
+
+### Continue Review
+
+"Continue Review" lets a user start a fresh wave of an assignment after completing the daily one. The numeric label is **cumulative across waves** (e.g. `16 / 15` after the first answer of wave 2), but the in-wave progress bar shows wave-1 progress 0–100% and is **always 100% for any wave-2+** (per product spec).
+
+The mechanism differs by mode:
+
+- **Vocab** is server-stateless across waves: `startContinueReview` on the client bumps a Riverpod `cumulativeOffsetQuestionCount`, resets in-wave count, and re-calls `getVocabSession` for a new batch of due cards. No new Firestore doc is created.
+- **Translation / Production** create a new `user_todo_assignments` document per wave so each wave has its own AI-generated `*_question_sets` doc and its own progress counters. The new callables `prepareTranslationContinueReview` / `prepareProductionContinueReview` create that wave-2+ todo idempotently. The doc is initially marked `hideFromAssignmentsTabUntilFirstProgress: true` so it appears under COMPLETED on Home until the user answers the first question; `evaluate*Response` clears the flag on transition `completedQuestionCount: 0 → 1`.
+
+#### New fields on `user_todo_assignments`
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `cumulativeOffsetQuestionCount` | number | Snapshot of `Σ totalQuestionCount` across earlier completed waves on the same calendar day at the time this todo was created. Drives cumulative labels and the "always-100%" bar rule. `0` for the first wave. |
+| `hideFromAssignmentsTabUntilFirstProgress` | boolean | When `true`, Home shows this row under COMPLETED with a "Continue review" button instead of under ASSIGNMENTS. Cleared by `evaluate*Response` when the user answers their first question. |
 
 ---
 

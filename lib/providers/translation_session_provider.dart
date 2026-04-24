@@ -15,6 +15,7 @@ class TranslationDailyState {
     required this.teacher,
     required this.completedQuestionCount,
     required this.totalQuestionCount,
+    required this.cumulativeOffsetQuestionCount,
     required this.sessionDateKey,
   });
 
@@ -23,6 +24,12 @@ class TranslationDailyState {
   final String teacher;
   final int completedQuestionCount;
   final int totalQuestionCount;
+
+  /// Sum of [totalQuestionCount] across all completed Translation
+  /// assignments for today. Used by Home to render cumulative labels
+  /// (e.g. "16/15") and to decide if the progress bar should be 100% full
+  /// (any wave-2+ has offset > 0).
+  final int cumulativeOffsetQuestionCount;
   final String sessionDateKey;
 }
 
@@ -52,6 +59,7 @@ class TranslationDailyNotifier extends Notifier<AsyncValue<TranslationDailyState
         teacher: dto.teacher,
         completedQuestionCount: dto.completedQuestionCount,
         totalQuestionCount: dto.totalQuestionCount,
+        cumulativeOffsetQuestionCount: dto.cumulativeOffsetQuestionCount,
         sessionDateKey: todayKey,
       );
     });
