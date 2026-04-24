@@ -226,17 +226,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                 _buildSubmitButton(currentCardIndex, q),
                 const SizedBox(height: 12),
                 _buildSkipButton(currentCardIndex),
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    'CHARACTER COUNT: ${_answerController.text.length}',
-                    style: const TextStyle(
-                      color: AppColors.navbarInactive,
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 24),
               ],
             ),
@@ -398,20 +387,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               ),
               contentPadding: const EdgeInsets.all(16),
               border: InputBorder.none,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                Text(
-                  '0 ATTEMPTS',
-                  style: TextStyle(
-                    color: AppColors.navbarInactive.withValues(alpha: 0.6),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
             ),
           ),
         ],
