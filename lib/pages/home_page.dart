@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../constants/demo_user.dart';
 import '../models/home_page_models.dart';
 import '../providers/production_session_provider.dart';
 import '../providers/translation_session_provider.dart';
@@ -127,6 +128,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       due: a.dueDate,
                       completedQuestionCount: a.completedQuestionCount,
                       totalQuestionCount: a.totalQuestionCount,
+                      cumulativeOffsetQuestionCount: a.cumulativeOffsetQuestionCount,
                       buttonLabel: a.buttonLabel,
                       onTap: () => _onStartAssignment(context, a),
                     ))
@@ -142,20 +144,21 @@ class _HomePageState extends ConsumerState<HomePage> {
   // Per-mode card assembly
   // ---------------------------------------------------------------------------
 
-  void _addVocabCards({
-    required AsyncValue<VocabSessionState> vocabSession,
-    required List<HomeAssignment> todoAssignments,
-    required List<HomeCompletion> completed,
-  }) {
+  void _addVocabCards({ required AsyncValue<VocabSessionState> vocabSession, required List<HomeAssignment> todoAssignments, required List<HomeCompletion> completed,}) {
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
     final cache = vocabSession.value;
     final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
     final totalCount = hasTodayCache ? cache.session.totalQuestionCount : 0;
     final completedCount = hasTodayCache ? cache.completedQuestionCount : 0;
+    final cumulativeOffset = hasTodayCache ? cache.cumulativeOffsetQuestionCount : 0;
 
     final isLoading = vocabSession.isLoading;
     final hasTodayAndEmpty = hasTodayCache && cache.questions.isEmpty;
-    final showVocabCompleted = !isLoading && hasTodayAndEmpty;
+    // A freshly-started "Continue review" wave (cumulativeOffset > 0) with
+    // zero in-wave progress should remain under COMPLETED until the user
+    // rates the first card; mirrors the T/P hideFromAssignmentsTabUntilFirstProgress flag.
+    final isContinueReviewIdle = hasTodayCache && cumulativeOffset > 0 && completedCount == 0 && cache.questions.isNotEmpty;
+    final showVocabCompleted = !isLoading && (hasTodayAndEmpty || isContinueReviewIdle);
     final showVocabAssignment = !showVocabCompleted;
 
     if (showVocabAssignment) {
@@ -167,12 +170,19 @@ class _HomePageState extends ConsumerState<HomePage> {
           dueDate: 'Today',
           totalQuestionCount: totalCount,
           completedQuestionCount: completedCount,
+          cumulativeOffsetQuestionCount: cumulativeOffset,
           buttonLabel: completedCount > 0 ? 'Continue' : 'Start',
         ),
       );
     }
     if (showVocabCompleted) {
-      completed.add(const HomeCompletion(type: 'VOCAB'));
+      // For Continue review-idle (loaded but unstarted), passing the
+      // assignmentId lets the button skip the prepare* step and go straight
+      // to the session.
+      completed.add(HomeCompletion(
+        type: 'VOCAB',
+        assignmentId: isContinueReviewIdle ? 'daily-vocab' : null,
+      ));
     }
   }
 
@@ -192,11 +202,19 @@ class _HomePageState extends ConsumerState<HomePage> {
           dueDate: 'Today',
           totalQuestionCount: state.totalQuestionCount,
           completedQuestionCount: state.completedQuestionCount,
+          cumulativeOffsetQuestionCount: state.cumulativeOffsetQuestionCount,
           buttonLabel: state.completedQuestionCount > 0 ? 'Continue' : 'Start',
         ),
       );
     } else {
-      completed.add(const HomeCompletion(type: 'TRANSLATION'));
+      // The backend sets placement=COMPLETED both for "fully done today" and
+      // for a wave-2+ that hasn't been started yet (hide flag set). In the
+      // latter case, the assignmentId is non-null and we can navigate
+      // directly without re-preparing.
+      completed.add(HomeCompletion(
+        type: 'TRANSLATION',
+        assignmentId: state.assignmentId,
+      ));
     }
   }
 
@@ -216,11 +234,15 @@ class _HomePageState extends ConsumerState<HomePage> {
           dueDate: 'Today',
           totalQuestionCount: state.totalQuestionCount,
           completedQuestionCount: state.completedQuestionCount,
+          cumulativeOffsetQuestionCount: state.cumulativeOffsetQuestionCount,
           buttonLabel: state.completedQuestionCount > 0 ? 'Continue' : 'Start',
         ),
       );
     } else {
-      completed.add(const HomeCompletion(type: 'PRODUCTION'));
+      completed.add(HomeCompletion(
+        type: 'PRODUCTION',
+        assignmentId: state.assignmentId,
+      ));
     }
   }
 
@@ -235,14 +257,54 @@ class _HomePageState extends ConsumerState<HomePage> {
     context.go('/assignment/$routeType/$id');
   }
 
-  /// Continue Review is only wired for Vocab right now; Translation/Production
-  /// "Continue Review" (for already-completed days) will land in a later PR.
-  VoidCallback? _onContinueCompleted(BuildContext context, String type) {
-    switch (type) {
+  /// Wires the "Continue review" button on a completed-section row.
+  ///
+  /// Vocab: starts a new client-side wave (resets in-wave count, bumps
+  /// cumulative offset) and refetches the next batch of due cards.
+  ///
+  /// Translation/Production: if the row already has an assignmentId (a
+  /// wave-2+ todo that hasn't been started yet), navigates straight to the
+  /// session page. Otherwise, calls the `prepare*ContinueReview` callable
+  /// which creates a new wave-2 todo on the server, then navigates. AI
+  /// generation runs lazily inside the session page's `start*Session`.
+  VoidCallback? _onContinueCompleted(BuildContext context, HomeCompletion c) {
+    switch (c.type) {
       case 'VOCAB':
-        return () {
-          ref.read(vocabSessionProvider.notifier).clear();
+        return () async {
+          await ref.read(vocabSessionProvider.notifier).startContinueReview('daily-vocab');
+          if (!context.mounted) return; 
           context.go('/assignment/vocab/daily-vocab');
+        };
+      case 'TRANSLATION':
+        return () async {
+          var assignmentId = c.assignmentId;
+          if (assignmentId == null || assignmentId.isEmpty) {
+            try {
+              final prepared = await prepareTranslationContinueReview(userId: demoUserId);
+              assignmentId = prepared.assignmentId;
+            } catch (_) {
+              return;
+            }
+          }
+          ref.read(translationDailyProvider.notifier).clear();
+          if (!context.mounted) return;
+          context.go('/assignment/translation/$assignmentId');
+        };
+      case 'PRODUCTION':
+        return () async {
+          var assignmentId = c.assignmentId;
+          if (assignmentId == null || assignmentId.isEmpty) {
+            try {
+              final prepared =
+                  await prepareProductionContinueReview(userId: demoUserId);
+              assignmentId = prepared.assignmentId;
+            } catch (_) {
+              return;
+            }
+          }
+          ref.read(productionDailyProvider.notifier).clear();
+          if (!context.mounted) return;
+          context.go('/assignment/production/$assignmentId');
         };
       default:
         return null;
@@ -350,7 +412,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ...completed.map((c) => _CompletedItem(
               title: c.type,
               subtitle: '',
-              onContinue: _onContinueCompleted(context, c.type),
+              onContinue: _onContinueCompleted(context, c),
             )),
         const SizedBox(height: 24),
       ],
@@ -365,6 +427,7 @@ class _AssignmentCard extends StatelessWidget {
     required this.due,
     required this.completedQuestionCount,
     required this.totalQuestionCount,
+    required this.cumulativeOffsetQuestionCount,
     required this.buttonLabel,
     required this.onTap,
   });
@@ -374,12 +437,25 @@ class _AssignmentCard extends StatelessWidget {
   final String due;
   final int completedQuestionCount;
   final int totalQuestionCount;
+  final int cumulativeOffsetQuestionCount;
   final String buttonLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final progressFraction = totalQuestionCount > 0 ? completedQuestionCount / totalQuestionCount : 0.0;
+    // Progress bar rules (per product spec):
+    //  - First wave of the day (offset == 0): show in-wave fraction 0..1.
+    //  - Any post–"Continue review" wave (offset > 0): always 100% full.
+    final isContinueReviewWave = cumulativeOffsetQuestionCount > 0;
+    final progressFraction = isContinueReviewWave ? 1.0 : (totalQuestionCount > 0 ? completedQuestionCount / totalQuestionCount : 0.0);
+
+    // Cumulative numerator for the label. For wave 1 we keep "on card N"
+    // semantics (completed+1 while at least one card remains) so a fresh
+    // start reads "1/15" not "0/15"; for wave 2+ the numerator is the
+    // straight cumulative count, so a freshly-started wave reads "15/15"
+    // and the first answer bumps it to "16/15".
+    final cumulativeNumerator = isContinueReviewWave ? cumulativeOffsetQuestionCount + completedQuestionCount : completedQuestionCount;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       padding: const EdgeInsets.all(16),
@@ -447,7 +523,7 @@ class _AssignmentCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '$completedQuestionCount / $totalQuestionCount questions',
+                '$cumulativeNumerator / $totalQuestionCount questions',
                 style: TextStyle(
                   color: AppColors.navbarInactive,
                   fontSize: 12,

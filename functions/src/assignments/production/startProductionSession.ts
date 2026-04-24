@@ -86,6 +86,7 @@ export const startProductionSession = functions.https.onCall(async (data, contex
   const totalQuestionCount = (fresh.totalQuestionCount as number) ?? questions.length;
   const completedQuestionCount = (fresh.completedQuestionCount as number) ?? 0;
   const teacher = (fresh.teacher as string) ?? "AI Generated";
+  const cumulativeOffsetQuestionCount = (fresh.cumulativeOffsetQuestionCount as number | undefined) ?? 0;
 
   return {
     assignmentId,
@@ -94,6 +95,7 @@ export const startProductionSession = functions.https.onCall(async (data, contex
     teacher,
     totalQuestionCount,
     completedQuestionCount,
+    cumulativeOffsetQuestionCount,
     questions,
   };
 });

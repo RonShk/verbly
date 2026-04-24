@@ -21,16 +21,28 @@ class ProductionDailyStatus {
     required this.teacher,
     required this.completedQuestionCount,
     required this.totalQuestionCount,
+    required this.cumulativeOffsetQuestionCount,
   });
 
   final ProductionDailyPlacement placement;
 
-  /// Id of the todo doc in Firestore; null when the assignment is already
-  /// completed (moved to `user_completed_assignments`).
+  /// Id of the todo doc in Firestore. Null when there is no active todo for
+  /// today (only completed docs exist). When the user taps "Continue review"
+  /// in that case, [prepareProductionContinueReview] is called to create a
+  /// new wave todo and return its id.
   final String? assignmentId;
   final String teacher;
+
+  /// In-wave completed count for the current todo (0..total).
   final int completedQuestionCount;
+
+  /// In-wave total for the current todo (e.g. 10).
   final int totalQuestionCount;
+
+  /// Sum of [totalQuestionCount] across all completed Production assignments
+  /// for today. Combined with [completedQuestionCount] to render cumulative
+  /// progress labels (e.g. "16/15") on Home and the session page.
+  final int cumulativeOffsetQuestionCount;
 
   factory ProductionDailyStatus.fromJson(dynamic json) {
     if (json is! Map) {
@@ -48,6 +60,7 @@ class ProductionDailyStatus {
       teacher: (json['teacher'] as String?) ?? '',
       completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
       totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+      cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -70,6 +83,55 @@ Future<ProductionDailyStatus> getProductionSession({required String userId,}) as
   }
 
   return ProductionDailyStatus.fromJson(data);
+}
+
+/// Result of [prepareProductionContinueReview].
+class ProductionContinueReviewPreparation {
+  const ProductionContinueReviewPreparation({
+    required this.assignmentId,
+    required this.cumulativeOffsetQuestionCount,
+    required this.totalQuestionCount,
+  });
+
+  final String assignmentId;
+  final int cumulativeOffsetQuestionCount;
+  final int totalQuestionCount;
+
+  factory ProductionContinueReviewPreparation.fromJson(dynamic json) {
+    if (json is! Map) {
+      throw Exception(
+        'ProductionContinueReviewPreparation expected a Map, got ${json.runtimeType}',
+      );
+    }
+    return ProductionContinueReviewPreparation(
+      assignmentId: (json['assignmentId'] as String?) ?? '',
+      cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Create (or return) today's "Continue review" wave for Production.
+///
+/// Used when the user taps "Continue review" on a completed Production row.
+/// Returns the new (or existing) todo's `assignmentId` so the client can
+/// navigate to the session page. AI generation itself happens lazily inside
+/// [startProductionSession]; this call is fast and fire-and-forget safe.
+Future<ProductionContinueReviewPreparation> prepareProductionContinueReview({required String userId,}) async {
+  final callable = FirebaseFunctions.instance.httpsCallable('prepareProductionContinueReview');
+  final result = await callable.call({
+    'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+  });
+
+  final data = result.data;
+  if (data is! Map) {
+    throw Exception(
+      'prepareProductionContinueReview returned unexpected type: ${data.runtimeType}',
+    );
+  }
+
+  return ProductionContinueReviewPreparation.fromJson(data);
 }
 
 /// Hydrate a Production assignment and return the full session with

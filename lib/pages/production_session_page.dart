@@ -52,23 +52,7 @@ class _ProductionSessionPageState
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: sessionAsync.when(
-          loading: () => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const CircularProgressIndicator(color: AppColors.blueHighlighted),
-                const SizedBox(height: 24),
-                Text(
-                  'We are generating your assignments.\nPlease wait — this may take 5–10 seconds.',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
+          loading: () => _buildLoadingView(context),
           error: (err, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -133,6 +117,45 @@ class _ProductionSessionPageState
     );
   }
 
+  /// Loading view shown while AI generation is in progress on the backend.
+  /// Includes an X close button so the user can return to Home; the Cloud
+  /// Function continues running and persists its result regardless.
+  Widget _buildLoadingView(BuildContext context) {
+    return Stack(
+      children: [
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: AppColors.blueHighlighted),
+              const SizedBox(height: 24),
+              const Text(
+                'We are generating your assignments.\nPlease wait — this may take 5–10 seconds.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          child: IconButton(
+            icon: const Icon(Icons.close),
+            color: Colors.white.withValues(alpha: 0.9),
+            onPressed: () {
+              _invalidateHome();
+              context.go('/home');
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCompletedView(BuildContext context) {
     return Center(
       child: Column(
@@ -172,11 +195,24 @@ class _ProductionSessionPageState
     int currentCardIndex,
     int total,
   ) {
-    final displayIndex = currentCardIndex + 1;
+    // Cumulative label rule (matches Vocab/Translation/Home):
+    //  - Wave 1 (offset == 0): "on card N" semantic so first card reads
+    //    "1/total".
+    //  - Wave 2+ (offset > 0): straight cumulative so a freshly-started
+    //    wave reads "total/total" and bumps to "(total+1)/total" on first
+    //    submit.
+    final isContinueReviewWave = session.cumulativeOffsetQuestionCount > 0;
+    final displayIndex = isContinueReviewWave ? session.cumulativeOffsetQuestionCount + currentCardIndex : currentCardIndex + 1;
 
     return Column(
       children: [
-        _buildQuestionHeader(context, session.assignmentTitle, displayIndex, total),
+        _buildQuestionHeader(
+          context,
+          session.assignmentTitle,
+          displayIndex,
+          total,
+          isContinueReviewWave,
+        ),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -212,8 +248,15 @@ class _ProductionSessionPageState
   }
 
   Widget _buildQuestionHeader(
-      BuildContext context, String title, int current, int total) {
-    final progress = total > 0 ? current / total : 0.0;
+    BuildContext context,
+    String title,
+    int current,
+    int total,
+    bool isContinueReviewWave,
+  ) {
+    // Bar rule: post–continue-review waves are always full; first wave fills
+    // proportionally to in-wave position.
+    final progress = isContinueReviewWave ? 1.0 : (total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(

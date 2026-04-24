@@ -16,9 +16,17 @@ function getTodayDateString(utcOffsetMinutes: number): string {
  * Does NOT generate questions. Safe to call from Home-load providers.
  *
  * Resolution order:
- *  1. If there is a todo doc for today/PRODUCTION, return it with placement=TODO.
- *  2. Else if there is a completed doc for today/PRODUCTION, return placement=COMPLETED.
+ *  1. If there is a todo doc for today/PRODUCTION, return it (placement
+ *     depends on whether it's a "Continue review" wave still hidden from
+ *     the ASSIGNMENTS list — see [hideFromAssignmentsTabUntilFirstProgress]).
+ *  2. Else if there is a completed doc for today/PRODUCTION, return
+ *     placement=COMPLETED with cumulative offset (sum of completed totals).
  *  3. Else create an empty stub todo doc (no questionSetId, 0/10) and return it.
+ *
+ * Cumulative offset semantics:
+ *  - For a wave-2+ todo: read [cumulativeOffsetQuestionCount] off the doc.
+ *  - For completed-only: sum of all today's completed totals (so the Home
+ *    can later show e.g. "20/10" once a 3rd wave begins).
  *
  * AI generation is deferred to `startProductionSession`.
  */
@@ -51,13 +59,18 @@ export const getProductionSession = functions.https.onCall(async (data, context)
   if (!todoSnap.empty) {
     const doc = todoSnap.docs[0];
     const d = doc.data();
+    const completed = (d.completedQuestionCount as number) ?? 0;
+    const hideUntilFirstProgress = (d.hideFromAssignmentsTabUntilFirstProgress as boolean | undefined) ?? false;
+    const cumulativeOffset = (d.cumulativeOffsetQuestionCount as number | undefined) ?? 0;
+    const placement = (hideUntilFirstProgress && completed === 0) ? "COMPLETED" : "TODO";
     return {
-      placement: "TODO",
+      placement,
       assignmentId: doc.id,
       type: "PRODUCTION",
       teacher: (d.teacher as string) ?? "AI Generated",
-      completedQuestionCount: (d.completedQuestionCount as number) ?? 0,
+      completedQuestionCount: completed,
       totalQuestionCount: (d.totalQuestionCount as number) ?? DEFAULT_TOTAL,
+      cumulativeOffsetQuestionCount: cumulativeOffset,
     };
   }
 
@@ -65,20 +78,25 @@ export const getProductionSession = functions.https.onCall(async (data, context)
     .where("userId", "==", userId)
     .where("type", "==", "PRODUCTION")
     .where("assignmentDate", "==", todayStr)
-    .limit(1)
     .get();
 
   if (!completedSnap.empty) {
-    const doc = completedSnap.docs[0];
-    const d = doc.data();
-    const total = (d.totalQuestionCount as number) ?? DEFAULT_TOTAL;
+    let cumulativeTotal = 0;
+    let teacher = "AI Generated";
+    for (const d of completedSnap.docs) {
+      const data = d.data();
+      cumulativeTotal += (data.totalQuestionCount as number) ?? 0;
+      teacher = (data.teacher as string) ?? teacher;
+    }
+    const lastTotal = (completedSnap.docs[completedSnap.docs.length - 1].data().totalQuestionCount as number) ?? DEFAULT_TOTAL;
     return {
       placement: "COMPLETED",
       assignmentId: null,
       type: "PRODUCTION",
-      teacher: (d.teacher as string) ?? "AI Generated",
-      completedQuestionCount: total,
-      totalQuestionCount: total,
+      teacher,
+      completedQuestionCount: lastTotal,
+      totalQuestionCount: lastTotal,
+      cumulativeOffsetQuestionCount: cumulativeTotal,
     };
   }
 
@@ -100,5 +118,6 @@ export const getProductionSession = functions.https.onCall(async (data, context)
     teacher: "AI Generated",
     completedQuestionCount: 0,
     totalQuestionCount: DEFAULT_TOTAL,
+    cumulativeOffsetQuestionCount: 0,
   };
 });

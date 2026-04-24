@@ -11,14 +11,27 @@ class VocabSessionState {
     required this.questions,
     required this.sessionDateKey,
     this.completedQuestionCount = 0,
+    this.cumulativeOffsetQuestionCount = 0,
   });
 
   final VocabSessionData session;
   final List<VocabQuestion> questions;
+
   /// Calendar date key (YYYY-MM-DD) in the user's local timezone for which this session was loaded.
   final String sessionDateKey;
-  /// Number of questions completed this session (rated and no longer due today). Used so progress shows 1/15, 2/15, etc. instead of 0/14, 0/13.
+
+  /// Number of questions completed in the current wave only (0..total). Used
+  /// alongside [cumulativeOffsetQuestionCount] to compute display labels and
+  /// in-wave progress.
   final int completedQuestionCount;
+
+  /// Sum of questions completed in earlier waves today (0 for the first
+  /// daily wave). Bumped by [VocabSessionNotifier.startContinueReview] when
+  /// the user taps "Continue review" after finishing a wave. Used by:
+  ///   - Home / session cumulative labels (e.g. "16/15")
+  ///   - The in-wave progress bar rule: any wave with offset > 0 stays 100%
+  ///     full (per product spec).
+  final int cumulativeOffsetQuestionCount;
 }
 
 /// Holds the day's session. Fetches once per assignment; list is updated when user rates.
@@ -52,6 +65,37 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
     });
   }
 
+  /// Begin a new "Continue review" wave for vocab. Captures the cumulative
+  /// offset from the just-finished wave, then refetches the next batch of
+  /// due cards. Idempotent if called while a fresh wave is already loaded
+  /// and untouched.
+  ///
+  /// Should only be invoked when the prior wave is fully consumed (questions
+  /// list empty) — typically from Home's "Continue review" button or the
+  /// session page's "All done!" CTA.
+  Future<void> startContinueReview(String assignmentId) async {
+    final current = state.value;
+    final priorOffset = current?.cumulativeOffsetQuestionCount ?? 0;
+    final justFinishedCount = current?.completedQuestionCount ?? 0;
+    final newOffset = priorOffset + justFinishedCount;
+
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final session = await getVocabSession(
+        assignmentId: assignmentId,
+        userId: demoUserId,
+      );
+      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+      return VocabSessionState(
+        session: session,
+        questions: List.from(session.questions),
+        sessionDateKey: todayKey,
+        completedQuestionCount: session.completedQuestionCount,
+        cumulativeOffsetQuestionCount: newOffset,
+      );
+    });
+  }
+
   /// Called after rating. If [stillDueToday] is false, remove card at [index].
   /// If true, move card at [index] to the end so it reappears later.
   void applyRating(bool stillDueToday, int index, VocabQuestion q) {
@@ -75,6 +119,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
           questions: const [],
           sessionDateKey: current.sessionDateKey,
           completedQuestionCount: newCompleted,
+          cumulativeOffsetQuestionCount: current.cumulativeOffsetQuestionCount,
         ),
       );
       return;
@@ -86,6 +131,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
         questions: list,
         sessionDateKey: current.sessionDateKey,
         completedQuestionCount: newCompleted,
+        cumulativeOffsetQuestionCount: current.cumulativeOffsetQuestionCount,
       ),
     );
   }

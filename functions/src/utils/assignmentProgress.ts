@@ -41,7 +41,15 @@ export async function updateAssignmentProgress(assignmentRef: DocumentReference,
       tx.delete(assignmentRef);
     });
   } else {
-    await assignmentRef.update({completedQuestionCount});
+    // For "Continue review" (wave 2+) todos we initially set
+    // hideFromAssignmentsTabUntilFirstProgress=true so the row stays under
+    // COMPLETED on Home until the user answers a question. Clear it on the
+    // first progress so the row moves back to ASSIGNMENTS.
+    const update: Record<string, unknown> = {completedQuestionCount};
+    if (completedQuestionCount === 1) {
+      update.hideFromAssignmentsTabUntilFirstProgress = false;
+    }
+    await assignmentRef.update(update);
   }
 
   return {assignmentCompleted};

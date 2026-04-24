@@ -21,16 +21,28 @@ class TranslationDailyStatus {
     required this.teacher,
     required this.completedQuestionCount,
     required this.totalQuestionCount,
+    required this.cumulativeOffsetQuestionCount,
   });
 
   final TranslationDailyPlacement placement;
 
-  /// Id of the todo doc in Firestore; null when the assignment is already
-  /// completed (moved to `user_completed_assignments`).
+  /// Id of the todo doc in Firestore. Null when there is no active todo for
+  /// today (only completed docs exist). When the user taps "Continue review"
+  /// in that case, [prepareTranslationContinueReview] is called to create a
+  /// new wave todo and return its id.
   final String? assignmentId;
   final String teacher;
+
+  /// In-wave completed count for the current todo (0..total).
   final int completedQuestionCount;
+
+  /// In-wave total for the current todo (e.g. 10).
   final int totalQuestionCount;
+
+  /// Sum of [totalQuestionCount] across all completed Translation
+  /// assignments for today. Combined with [completedQuestionCount] to render
+  /// cumulative progress labels (e.g. "16/15") on Home and the session page.
+  final int cumulativeOffsetQuestionCount;
 
   factory TranslationDailyStatus.fromJson(dynamic json) {
     if (json is! Map) {
@@ -48,6 +60,7 @@ class TranslationDailyStatus {
       teacher: (json['teacher'] as String?) ?? '',
       completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
       totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+      cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -70,6 +83,55 @@ Future<TranslationDailyStatus> getTranslationSession({required String userId,}) 
   }
 
   return TranslationDailyStatus.fromJson(data);
+}
+
+/// Result of [prepareTranslationContinueReview].
+class TranslationContinueReviewPreparation {
+  const TranslationContinueReviewPreparation({
+    required this.assignmentId,
+    required this.cumulativeOffsetQuestionCount,
+    required this.totalQuestionCount,
+  });
+
+  final String assignmentId;
+  final int cumulativeOffsetQuestionCount;
+  final int totalQuestionCount;
+
+  factory TranslationContinueReviewPreparation.fromJson(dynamic json) {
+    if (json is! Map) {
+      throw Exception(
+        'TranslationContinueReviewPreparation expected a Map, got ${json.runtimeType}',
+      );
+    }
+    return TranslationContinueReviewPreparation(
+      assignmentId: (json['assignmentId'] as String?) ?? '',
+      cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Create (or return) today's "Continue review" wave for Translation.
+///
+/// Used when the user taps "Continue review" on a completed Translation row.
+/// Returns the new (or existing) todo's `assignmentId` so the client can
+/// navigate to the session page. AI generation itself happens lazily inside
+/// [startTranslationSession]; this call is fast and fire-and-forget safe.
+Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview({required String userId,}) async {
+  final callable = FirebaseFunctions.instance.httpsCallable('prepareTranslationContinueReview');
+  final result = await callable.call({
+    'userId': userId,
+    'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+  });
+
+  final data = result.data;
+  if (data is! Map) {
+    throw Exception(
+      'prepareTranslationContinueReview returned unexpected type: ${data.runtimeType}',
+    );
+  }
+
+  return TranslationContinueReviewPreparation.fromJson(data);
 }
 
 /// Hydrate a Translation assignment and return the full session with
