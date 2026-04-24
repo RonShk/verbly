@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
 import '../models/vocab_session_models.dart';
-import '../providers/home_page_provider.dart';
 import '../providers/vocab_session_provider.dart';
 import '../services/vocab_session_api_calls.dart';
 import '../theme/app_colors.dart';
@@ -106,10 +105,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () {
-                        ref.invalidate(homePageDataProvider);
-                        context.go('/home');
-                      },
+                      onPressed: () => context.go('/home'),
                       style: FilledButton.styleFrom(
                           backgroundColor: AppColors.button),
                       child: const Text('Back to Home'),
@@ -162,10 +158,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               IconButton(
                 icon: const Icon(Icons.close),
                 color: Colors.white.withValues(alpha: 0.9),
-                onPressed: () {
-                  ref.invalidate(homePageDataProvider);
-                  context.go('/home');
-                },
+                onPressed: () => context.go('/home'),
               ),
               Expanded(
                 child: Column(

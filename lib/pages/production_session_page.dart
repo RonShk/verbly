@@ -6,17 +6,17 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
 import '../models/production_session_models.dart';
-import '../providers/home_page_provider.dart';
 import '../providers/production_session_provider.dart';
 import '../services/production_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class ProductionSessionPage extends ConsumerStatefulWidget {
-  const ProductionSessionPage({super.key});
+  const ProductionSessionPage({super.key, required this.assignmentId});
+
+  final String assignmentId;
 
   @override
-  ConsumerState<ProductionSessionPage> createState() =>
-      _ProductionSessionPageState();
+  ConsumerState<ProductionSessionPage> createState() => _ProductionSessionPageState();
 }
 
 class _ProductionSessionPageState
@@ -25,7 +25,6 @@ class _ProductionSessionPageState
   bool _isSubmitting = false;
   ProductionEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
-  String? _assignmentId;
 
   @override
   void dispose() {
@@ -33,9 +32,21 @@ class _ProductionSessionPageState
     super.dispose();
   }
 
+  /// Invalidate Home's cached Production status so the returning Home page
+  /// re-queries placement (e.g. moved from Todo → Completed).
+  void _invalidateHome() {
+    ref.read(productionDailyProvider.notifier).clear();
+  }
+
+  /// Re-fetch the hydrated session for the current `assignmentId`. Backend is
+  /// idempotent, so this does NOT regenerate questions.
+  void _refreshSession() {
+    ref.invalidate(productionStartSessionProvider(widget.assignmentId));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(productionSessionProvider);
+    final sessionAsync = ref.watch(productionStartSessionProvider(widget.assignmentId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -78,7 +89,7 @@ class _ProductionSessionPageState
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () => ref.invalidate(productionSessionProvider),
+                    onPressed: _refreshSession,
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -88,7 +99,6 @@ class _ProductionSessionPageState
             ),
           ),
           data: (session) {
-            _assignmentId = session.assignmentId;
             final total = session.totalQuestionCount;
             final questions = session.questions;
             final currentCardIndex = session.completedQuestionCount;
@@ -139,7 +149,7 @@ class _ProductionSessionPageState
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
             },
             style:
@@ -214,7 +224,7 @@ class _ProductionSessionPageState
                 icon: const Icon(Icons.close),
                 color: Colors.white.withValues(alpha: 0.9),
                 onPressed: () {
-                  ref.invalidate(homePageDataProvider);
+                  _invalidateHome();
                   context.go('/home');
                 },
               ),
@@ -423,13 +433,13 @@ class _ProductionSessionPageState
 
   Future<void> _submitAnswer(int questionIndex) async {
     final answer = _answerController.text.trim();
-    if (answer.isEmpty || _assignmentId == null) return;
+    if (answer.isEmpty) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateProductionResponse(
-        assignmentId: _assignmentId!,
+        assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
@@ -456,12 +466,11 @@ class _ProductionSessionPageState
   }
 
   Future<void> _skipQuestion(int questionIndex) async {
-    if (_assignmentId == null) return;
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateProductionResponse(
-        assignmentId: _assignmentId!,
+        assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
@@ -470,12 +479,12 @@ class _ProductionSessionPageState
       if (!mounted) return;
 
       if (result.assignmentCompleted) {
-        ref.invalidate(homePageDataProvider);
+        _invalidateHome();
         context.go('/home');
         return;
       }
 
-      ref.invalidate(productionSessionProvider);
+      _refreshSession();
       _resetState();
     } catch (e) {
       if (!mounted) return;
@@ -571,7 +580,7 @@ class _ProductionSessionPageState
             icon: const Icon(Icons.close),
             color: Colors.white.withValues(alpha: 0.9),
             onPressed: () {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
             },
           ),
@@ -863,11 +872,11 @@ class _ProductionSessionPageState
         child: FilledButton(
           onPressed: () {
             if (result.assignmentCompleted) {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
               return;
             }
-            ref.invalidate(productionSessionProvider);
+            _refreshSession();
             _resetState();
           },
           style: FilledButton.styleFrom(

@@ -6,17 +6,17 @@ import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
 import '../models/translation_session_models.dart';
-import '../providers/home_page_provider.dart';
 import '../providers/translation_session_provider.dart';
 import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class TranslationSessionPage extends ConsumerStatefulWidget {
-  const TranslationSessionPage({super.key});
+  const TranslationSessionPage({super.key, required this.assignmentId});
+
+  final String assignmentId;
 
   @override
-  ConsumerState<TranslationSessionPage> createState() =>
-      _TranslationSessionPageState();
+  ConsumerState<TranslationSessionPage> createState() => _TranslationSessionPageState();
 }
 
 class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage> {
@@ -24,7 +24,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   bool _isSubmitting = false;
   TranslationEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
-  String? _assignmentId;
 
   @override
   void dispose() {
@@ -32,9 +31,21 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     super.dispose();
   }
 
+  /// Invalidate Home's cached Translation status so the returning Home page
+  /// re-queries placement (e.g. moved from Todo → Completed).
+  void _invalidateHome() {
+    ref.read(translationDailyProvider.notifier).clear();
+  }
+
+  /// Re-fetch the hydrated session for the current `assignmentId`. Backend is
+  /// idempotent, so this does NOT regenerate questions.
+  void _refreshSession() {
+    ref.invalidate(translationStartSessionProvider(widget.assignmentId));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(translationSessionProvider);
+    final sessionAsync = ref.watch(translationStartSessionProvider(widget.assignmentId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -77,7 +88,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () => ref.invalidate(translationSessionProvider),
+                    onPressed: _refreshSession,
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
                     child: const Text('Retry'),
@@ -87,7 +98,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             ),
           ),
           data: (session) {
-            _assignmentId = session.assignmentId;
             final total = session.totalQuestionCount;
             final questions = session.questions;
             final currentCardIndex = session.completedQuestionCount;
@@ -138,7 +148,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
             },
             style:
@@ -214,7 +224,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                 icon: const Icon(Icons.close),
                 color: Colors.white.withValues(alpha: 0.9),
                 onPressed: () {
-                  ref.invalidate(homePageDataProvider);
+                  _invalidateHome();
                   context.go('/home');
                 },
               ),
@@ -423,13 +433,13 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
   Future<void> _submitAnswer(int questionIndex) async {
     final answer = _answerController.text.trim();
-    if (answer.isEmpty || _assignmentId == null) return;
+    if (answer.isEmpty) return;
 
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateTranslationResponse(
-        assignmentId: _assignmentId!,
+        assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
@@ -456,12 +466,11 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   }
 
   Future<void> _skipQuestion(int questionIndex) async {
-    if (_assignmentId == null) return;
     setState(() => _isSubmitting = true);
 
     try {
       final result = await evaluateTranslationResponse(
-        assignmentId: _assignmentId!,
+        assignmentId: widget.assignmentId,
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
@@ -470,12 +479,12 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
       if (!mounted) return;
 
       if (result.assignmentCompleted) {
-        ref.invalidate(homePageDataProvider);
+        _invalidateHome();
         context.go('/home');
         return;
       }
 
-      ref.invalidate(translationSessionProvider);
+      _refreshSession();
       _resetState();
     } catch (e) {
       if (!mounted) return;
@@ -571,7 +580,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             icon: const Icon(Icons.close),
             color: Colors.white.withValues(alpha: 0.9),
             onPressed: () {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
             },
           ),
@@ -865,11 +874,11 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
         child: FilledButton(
           onPressed: () {
             if (result.assignmentCompleted) {
-              ref.invalidate(homePageDataProvider);
+              _invalidateHome();
               context.go('/home');
               return;
             }
-            ref.invalidate(translationSessionProvider);
+            _refreshSession();
             _resetState();
           },
           style: FilledButton.styleFrom(

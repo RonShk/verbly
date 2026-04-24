@@ -2,9 +2,60 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/production_session_models.dart';
 
-Future<ProductionSessionData> getProductionSession({
-  required String userId,
-}) async {
+/// Placement of the daily Production assignment on Home.
+///
+/// - [todo]: user has not completed today's Production assignment yet.
+/// - [completed]: user has already completed today's Production assignment.
+enum ProductionDailyPlacement { todo, completed }
+
+/// Lightweight "stub" status for the daily Production assignment.
+///
+/// Returned by the stub-only `getProductionSession` callable. Safe to fetch
+/// from Home without triggering AI generation: counts will be 0/10 until the
+/// user taps Start/Continue, at which point `startProductionSession` is
+/// called to hydrate the assignment.
+class ProductionDailyStatus {
+  const ProductionDailyStatus({
+    required this.placement,
+    required this.assignmentId,
+    required this.teacher,
+    required this.completedQuestionCount,
+    required this.totalQuestionCount,
+  });
+
+  final ProductionDailyPlacement placement;
+
+  /// Id of the todo doc in Firestore; null when the assignment is already
+  /// completed (moved to `user_completed_assignments`).
+  final String? assignmentId;
+  final String teacher;
+  final int completedQuestionCount;
+  final int totalQuestionCount;
+
+  factory ProductionDailyStatus.fromJson(dynamic json) {
+    if (json is! Map) {
+      throw Exception(
+        'ProductionDailyStatus expected a Map, got ${json.runtimeType}',
+      );
+    }
+    final placementStr = (json['placement'] as String?)?.toUpperCase() ?? 'TODO';
+    final placement = placementStr == 'COMPLETED'
+        ? ProductionDailyPlacement.completed
+        : ProductionDailyPlacement.todo;
+    return ProductionDailyStatus(
+      placement: placement,
+      assignmentId: json['assignmentId'] as String?,
+      teacher: (json['teacher'] as String?) ?? '',
+      completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Fetch today's Production assignment status. Stub-only: does NOT generate
+/// questions. Use this from Home to decide whether to show the card under
+/// Todo vs Completed.
+Future<ProductionDailyStatus> getProductionSession({required String userId,}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getProductionSession');
   final result = await callable.call({
     'userId': userId,
@@ -15,6 +66,26 @@ Future<ProductionSessionData> getProductionSession({
   if (data is! Map) {
     throw Exception(
       'getProductionSession returned unexpected type: ${data.runtimeType}',
+    );
+  }
+
+  return ProductionDailyStatus.fromJson(data);
+}
+
+/// Hydrate a Production assignment and return the full session with
+/// questions. Idempotent: the backend only runs AI generation once per
+/// assignment; repeat calls return the existing questions.
+Future<ProductionSessionData> startProductionSession({required String userId, required String assignmentId,}) async {
+  final callable = FirebaseFunctions.instance.httpsCallable('startProductionSession');
+  final result = await callable.call({
+    'userId': userId,
+    'assignmentId': assignmentId,
+  });
+
+  final data = result.data;
+  if (data is! Map) {
+    throw Exception(
+      'startProductionSession returned unexpected type: ${data.runtimeType}',
     );
   }
 

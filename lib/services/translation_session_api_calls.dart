@@ -2,9 +2,60 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/translation_session_models.dart';
 
-Future<TranslationSessionData> getTranslationSession({
-  required String userId,
-}) async {
+/// Placement of the daily Translation assignment on Home.
+///
+/// - [todo]: user has not completed today's Translation assignment yet.
+/// - [completed]: user has already completed today's Translation assignment.
+enum TranslationDailyPlacement { todo, completed }
+
+/// Lightweight "stub" status for the daily Translation assignment.
+///
+/// Returned by the stub-only `getTranslationSession` callable. Safe to fetch
+/// from Home without triggering AI generation: counts will be 0/10 until the
+/// user taps Start/Continue, at which point `startTranslationSession` is
+/// called to hydrate the assignment.
+class TranslationDailyStatus {
+  const TranslationDailyStatus({
+    required this.placement,
+    required this.assignmentId,
+    required this.teacher,
+    required this.completedQuestionCount,
+    required this.totalQuestionCount,
+  });
+
+  final TranslationDailyPlacement placement;
+
+  /// Id of the todo doc in Firestore; null when the assignment is already
+  /// completed (moved to `user_completed_assignments`).
+  final String? assignmentId;
+  final String teacher;
+  final int completedQuestionCount;
+  final int totalQuestionCount;
+
+  factory TranslationDailyStatus.fromJson(dynamic json) {
+    if (json is! Map) {
+      throw Exception(
+        'TranslationDailyStatus expected a Map, got ${json.runtimeType}',
+      );
+    }
+    final placementStr = (json['placement'] as String?)?.toUpperCase() ?? 'TODO';
+    final placement = placementStr == 'COMPLETED'
+        ? TranslationDailyPlacement.completed
+        : TranslationDailyPlacement.todo;
+    return TranslationDailyStatus(
+      placement: placement,
+      assignmentId: json['assignmentId'] as String?,
+      teacher: (json['teacher'] as String?) ?? '',
+      completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
+      totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Fetch today's Translation assignment status. Stub-only: does NOT generate
+/// questions. Use this from Home to decide whether to show the card under
+/// Todo vs Completed.
+Future<TranslationDailyStatus> getTranslationSession({required String userId,}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getTranslationSession');
   final result = await callable.call({
     'userId': userId,
@@ -15,6 +66,26 @@ Future<TranslationSessionData> getTranslationSession({
   if (data is! Map) {
     throw Exception(
       'getTranslationSession returned unexpected type: ${data.runtimeType}',
+    );
+  }
+
+  return TranslationDailyStatus.fromJson(data);
+}
+
+/// Hydrate a Translation assignment and return the full session with
+/// questions. Idempotent: the backend only runs AI generation once per
+/// assignment; repeat calls return the existing questions.
+Future<TranslationSessionData> startTranslationSession({required String userId, required String assignmentId,}) async {
+  final callable = FirebaseFunctions.instance.httpsCallable('startTranslationSession');
+  final result = await callable.call({
+    'userId': userId,
+    'assignmentId': assignmentId,
+  });
+
+  final data = result.data;
+  if (data is! Map) {
+    throw Exception(
+      'startTranslationSession returned unexpected type: ${data.runtimeType}',
     );
   }
 

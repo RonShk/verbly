@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/home_page_models.dart';
-import '../providers/home_page_provider.dart';
+import '../providers/production_session_provider.dart';
+import '../providers/translation_session_provider.dart';
 import '../providers/vocab_session_provider.dart';
+import '../services/production_session_api_calls.dart';
+import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -23,15 +26,24 @@ class _HomePageState extends ConsumerState<HomePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final vocabState = ref.read(vocabSessionProvider);
-      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-      final cache = vocabState.value;
-      final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
-      if (!hasTodayCache) {
-        ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
-      }
+      _loadModesIfNeeded();
       _scheduleMidnightTimer();
     });
+  }
+
+  /// Kick off a stub-only status fetch for each mode if its per-day cache is
+  /// missing. No AI generation happens here.
+  void _loadModesIfNeeded() {
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+
+    final vocabCache = ref.read(vocabSessionProvider).value;
+    final hasTodayVocab = vocabCache != null && vocabCache.sessionDateKey == todayKey;
+    if (!hasTodayVocab) {
+      ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
+    }
+
+    ref.read(translationDailyProvider.notifier).loadIfNeeded();
+    ref.read(productionDailyProvider.notifier).loadIfNeeded();
   }
 
   void _scheduleMidnightTimer() {
@@ -45,7 +57,10 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _onMidnight() {
     ref.read(vocabSessionProvider.notifier).clear();
     ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
-    ref.invalidate(homePageDataProvider);
+    ref.read(translationDailyProvider.notifier).clear();
+    ref.read(translationDailyProvider.notifier).loadIfNeeded();
+    ref.read(productionDailyProvider.notifier).clear();
+    ref.read(productionDailyProvider.notifier).loadIfNeeded();
     _scheduleMidnightTimer();
   }
 
@@ -57,101 +72,47 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final asyncData = ref.watch(homePageDataProvider);
     final vocabSession = ref.watch(vocabSessionProvider);
+    final translationDaily = ref.watch(translationDailyProvider);
+    final productionDaily = ref.watch(productionDailyProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: asyncData.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.blueHighlighted),
-          ),
-          error: (err, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Something went wrong',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    err.toString(),
-                    style: TextStyle(color: AppColors.navbarInactive, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: () => ref.invalidate(homePageDataProvider),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.button),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          data: (data) => _buildContent(context, data, vocabSession),
+        child: _buildContent(
+          context,
+          vocabSession: vocabSession,
+          translationDaily: translationDaily,
+          productionDaily: productionDaily,
         ),
       ),
     );
   }
 
   Widget _buildContent(
-    BuildContext context,
-    HomePageData data,
-    AsyncValue<VocabSessionState> vocabSession,
-  ) {
-    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    final cache = vocabSession.value;
-    final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
-    final totalCount = hasTodayCache ? cache.session.totalQuestionCount : 0;
-    final completedCount = hasTodayCache ? cache.completedQuestionCount : 0;
-
-    final isLoading = vocabSession.isLoading;
-    final hasTodayAndEmpty = hasTodayCache && cache.questions.isEmpty;
-
+    BuildContext context, {
+    required AsyncValue<VocabSessionState> vocabSession,
+    required AsyncValue<TranslationDailyState> translationDaily,
+    required AsyncValue<ProductionDailyState> productionDaily,
+  }) {
     final todoAssignments = <HomeAssignment>[];
-    for (final a in data.assignments) {
-      if (a.id == 'daily-vocab' || a.type == 'VOCAB') {
-        continue;
-      }
-      todoAssignments.add(a);
-    }
+    final completed = <HomeCompletion>[];
 
-    final showVocabCompleted = !isLoading && hasTodayAndEmpty;
-    final showVocabAssignment = !showVocabCompleted;
-
-    if (showVocabAssignment) {
-      todoAssignments.insert(
-        0,
-        HomeAssignment(
-          id: 'daily-vocab',
-          type: 'VOCAB',
-          teacher: '',
-          dueDate: 'Today',
-          totalQuestionCount: totalCount,
-          completedQuestionCount: completedCount,
-          buttonLabel: completedCount > 0 ? 'Continue' : 'Start',
-        ),
-      );
-    }
-
-    final completed = <HomeCompletion>[
-      ...data.completed,
-      if (showVocabCompleted)
-        const HomeCompletion(
-          type: 'VOCAB',
-          teacher: '',
-          dueDate: '',
-          totalQuestionCount: 0,
-          completedAt: '',
-          subtitle: '',
-        ),
-    ];
+    _addVocabCards(
+      vocabSession: vocabSession,
+      todoAssignments: todoAssignments,
+      completed: completed,
+    );
+    _addTranslationCards(
+      translationDaily: translationDaily,
+      todoAssignments: todoAssignments,
+      completed: completed,
+    );
+    _addProductionCards(
+      productionDaily: productionDaily,
+      todoAssignments: todoAssignments,
+      completed: completed,
+    );
 
     return CustomScrollView(
       slivers: [
@@ -167,7 +128,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       completedQuestionCount: a.completedQuestionCount,
                       totalQuestionCount: a.totalQuestionCount,
                       buttonLabel: a.buttonLabel,
-                      onTap: () => context.go('/assignment/${a.type.toLowerCase().replaceAll(' ', '_')}/${a.id}'),
+                      onTap: () => _onStartAssignment(context, a),
                     ))
                 .toList(),
           ),
@@ -176,6 +137,121 @@ class _HomePageState extends ConsumerState<HomePage> {
       ],
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Per-mode card assembly
+  // ---------------------------------------------------------------------------
+
+  void _addVocabCards({
+    required AsyncValue<VocabSessionState> vocabSession,
+    required List<HomeAssignment> todoAssignments,
+    required List<HomeCompletion> completed,
+  }) {
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    final cache = vocabSession.value;
+    final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
+    final totalCount = hasTodayCache ? cache.session.totalQuestionCount : 0;
+    final completedCount = hasTodayCache ? cache.completedQuestionCount : 0;
+
+    final isLoading = vocabSession.isLoading;
+    final hasTodayAndEmpty = hasTodayCache && cache.questions.isEmpty;
+    final showVocabCompleted = !isLoading && hasTodayAndEmpty;
+    final showVocabAssignment = !showVocabCompleted;
+
+    if (showVocabAssignment) {
+      todoAssignments.add(
+        HomeAssignment(
+          id: 'daily-vocab',
+          type: 'VOCAB',
+          teacher: '',
+          dueDate: 'Today',
+          totalQuestionCount: totalCount,
+          completedQuestionCount: completedCount,
+          buttonLabel: completedCount > 0 ? 'Continue' : 'Start',
+        ),
+      );
+    }
+    if (showVocabCompleted) {
+      completed.add(const HomeCompletion(type: 'VOCAB'));
+    }
+  }
+
+  void _addTranslationCards({
+    required AsyncValue<TranslationDailyState> translationDaily,
+    required List<HomeAssignment> todoAssignments,
+    required List<HomeCompletion> completed,
+  }) {
+    final state = translationDaily.value;
+    if (state == null) return;
+    if (state.placement == TranslationDailyPlacement.todo) {
+      todoAssignments.add(
+        HomeAssignment(
+          id: state.assignmentId ?? '',
+          type: 'TRANSLATION',
+          teacher: state.teacher,
+          dueDate: 'Today',
+          totalQuestionCount: state.totalQuestionCount,
+          completedQuestionCount: state.completedQuestionCount,
+          buttonLabel: state.completedQuestionCount > 0 ? 'Continue' : 'Start',
+        ),
+      );
+    } else {
+      completed.add(const HomeCompletion(type: 'TRANSLATION'));
+    }
+  }
+
+  void _addProductionCards({
+    required AsyncValue<ProductionDailyState> productionDaily,
+    required List<HomeAssignment> todoAssignments,
+    required List<HomeCompletion> completed,
+  }) {
+    final state = productionDaily.value;
+    if (state == null) return;
+    if (state.placement == ProductionDailyPlacement.todo) {
+      todoAssignments.add(
+        HomeAssignment(
+          id: state.assignmentId ?? '',
+          type: 'PRODUCTION',
+          teacher: state.teacher,
+          dueDate: 'Today',
+          totalQuestionCount: state.totalQuestionCount,
+          completedQuestionCount: state.completedQuestionCount,
+          buttonLabel: state.completedQuestionCount > 0 ? 'Continue' : 'Start',
+        ),
+      );
+    } else {
+      completed.add(const HomeCompletion(type: 'PRODUCTION'));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
+  void _onStartAssignment(BuildContext context, HomeAssignment a) {
+    final id = a.id;
+    if (id.isEmpty) return;
+    final routeType = a.type.toLowerCase();
+    context.go('/assignment/$routeType/$id');
+  }
+
+  /// Continue Review is only wired for Vocab right now; Translation/Production
+  /// "Continue Review" (for already-completed days) will land in a later PR.
+  VoidCallback? _onContinueCompleted(BuildContext context, String type) {
+    switch (type) {
+      case 'VOCAB':
+        return () {
+          ref.read(vocabSessionProvider.notifier).clear();
+          context.go('/assignment/vocab/daily-vocab');
+        };
+      default:
+        return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chrome widgets
+  // ---------------------------------------------------------------------------
 
   Widget _buildHeader(BuildContext context) {
     return SliverToBoxAdapter(
@@ -247,23 +323,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  void _onContinueCompleted(BuildContext context, String type) {
-    switch (type) {
-      case 'VOCAB':
-        ref.read(vocabSessionProvider.notifier).clear();
-        context.go('/assignment/vocab/daily-vocab');
-        break;
-      case 'TRANSLATION':
-        context.go('/assignment/translation/daily-translation');
-        break;
-      case 'PRODUCTION':
-        context.go('/assignment/production/daily-production');
-        break;
-      default:
-        break;
-    }
-  }
-
   Widget _buildCompletedSection(BuildContext context, List<HomeCompletion> completed) {
     if (completed.isEmpty) return const SizedBox(height: 24);
     return Column(
@@ -291,7 +350,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ...completed.map((c) => _CompletedItem(
               title: c.type,
               subtitle: '',
-              onContinue: () => _onContinueCompleted(context, c.type),
+              onContinue: _onContinueCompleted(context, c.type),
             )),
         const SizedBox(height: 24),
       ],
