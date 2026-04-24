@@ -19,10 +19,16 @@ const TranslationResponseSchema = z.object({
 });
 
 /**
- * Generates a new set of translation questions for the user and creates
- * the corresponding assignment and question set documents in Firestore.
+ * Generates a new set of translation questions for the user and creates the
+ * corresponding question set document. If `existingAssignmentId` is provided,
+ * that stub todo document is hydrated with the new `questionSetId` and
+ * `totalQuestionCount`. Otherwise, a new todo document is created.
  */
-export async function generateTranslationQuestions(userId: string, assignmentDate: string): Promise<{ assignmentId: string; questionSetId: string; totalQuestionCount: number }> {
+export async function generateTranslationQuestions(
+  userId: string,
+  assignmentDate: string,
+  existingAssignmentId?: string
+): Promise<{ assignmentId: string; questionSetId: string; totalQuestionCount: number }> {
   const words = await selectTargetWordsForSession(userId, {maxWords: 30});
 
   if (words.length === 0) {
@@ -54,19 +60,29 @@ export async function generateTranslationQuestions(userId: string, assignmentDat
   const questionSetId = questionSetRef.id;
   const totalQuestionCount = questions.length;
 
-  const assignmentRef = await db.collection("user_todo_assignments").add({
-    userId,
-    type: "TRANSLATION",
-    teacher: "AI Generated",
-    totalQuestionCount,
-    completedQuestionCount: 0,
-    questionSetId,
-    assignmentDate,
-    createdAt: now,
-  });
+  let assignmentId: string;
+  if (existingAssignmentId) {
+    assignmentId = existingAssignmentId;
+    await db.collection("user_todo_assignments").doc(assignmentId).update({
+      questionSetId,
+      totalQuestionCount,
+    });
+  } else {
+    const assignmentRef = await db.collection("user_todo_assignments").add({
+      userId,
+      type: "TRANSLATION",
+      teacher: "AI Generated",
+      totalQuestionCount,
+      completedQuestionCount: 0,
+      questionSetId,
+      assignmentDate,
+      createdAt: now,
+    });
+    assignmentId = assignmentRef.id;
+  }
 
   return {
-    assignmentId: assignmentRef.id,
+    assignmentId,
     questionSetId,
     totalQuestionCount,
   };
