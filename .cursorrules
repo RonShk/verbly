@@ -1,0 +1,2 @@
+* **Branching:** Never commit to `main`; if on `main`, create and switch to `feature/<short-name>` before making changes; if already on a feature branch, stay on it.
+* **Formatting:** Keep simple logic (booleans, ternaries, null checks) on one line when readable; no unnecessary line breaks or verbose formatting.

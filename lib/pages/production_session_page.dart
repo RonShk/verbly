@@ -447,9 +447,7 @@ class _ProductionSessionPageState
   Widget _buildSkipButton(int currentCardIndex) {
     return Center(
       child: TextButton(
-        onPressed: _isSubmitting
-            ? null
-            : () => _skipQuestion(currentCardIndex),
+        onPressed: _isSubmitting ? null : () => _skipQuestion(currentCardIndex),
         child: const Text(
           "I DON'T KNOW THIS ONE",
           style: TextStyle(
@@ -637,11 +635,7 @@ class _ProductionSessionPageState
 
   Widget _buildScoreRing(int score) {
     final fraction = score / 100;
-    final color = score >= 80
-        ? AppColors.success
-        : score >= 50
-            ? AppColors.assignmentTypeAccent
-            : AppColors.danger;
+    final color = score >= 80 ? AppColors.success : score >= 50 ? AppColors.assignmentTypeAccent : AppColors.danger;
 
     return Center(
       child: SizedBox(
@@ -723,8 +717,7 @@ class _ProductionSessionPageState
 
   Widget _buildCorrectedSection(ProductionEvaluationResult result) {
     final segments = result.correctedVersionSegments;
-    final hasHighlights =
-        segments != null && segments.isNotEmpty && segments.any((s) => s.highlight != 'none');
+    final hasHighlights = segments != null && segments.isNotEmpty && segments.any((s) => s.highlight != 'none');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
