@@ -38,6 +38,7 @@ export const evaluateProductionResponse = functions.https.onCall(
     const userId = data?.userId;
     const questionIndex = data?.questionIndex;
     const studentAnswer = data?.studentAnswer;
+    const useForeignCharacters = data?.useForeignCharacters;
 
     if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
       throw new functions.https.HttpsError(
@@ -59,6 +60,8 @@ export const evaluateProductionResponse = functions.https.onCall(
         "studentAnswer is required."
       );
     }
+
+    const useForeignCharactersBool = typeof useForeignCharacters === "boolean" ? useForeignCharacters : true;
 
     const assignmentRef = db.collection("user_todo_assignments").doc(assignmentId);
     const assignmentSnap = await assignmentRef.get();
@@ -146,7 +149,8 @@ export const evaluateProductionResponse = functions.https.onCall(
     const prompt = ProductionPrompts.buildEvaluatePrompt(
       sentenceInNativeLanguage,
       vocabWordsUsed,
-      studentAnswer
+      studentAnswer,
+      useForeignCharactersBool
     );
 
     const evaluation = await generateStructured(prompt, EvaluationSchema);

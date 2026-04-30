@@ -203,6 +203,7 @@ Future<ProductionEvaluationResult> evaluateProductionResponse({
   required String userId,
   required int questionIndex,
   required String studentAnswer,
+  bool useForeignCharacters = true,
 }) async {
   final callable = FirebaseFunctions.instance.httpsCallable('evaluateProductionResponse');
   final result = await callable.call({
@@ -210,6 +211,7 @@ Future<ProductionEvaluationResult> evaluateProductionResponse({
     'userId': userId,
     'questionIndex': questionIndex,
     'studentAnswer': studentAnswer,
+    'useForeignCharacters': useForeignCharacters,
   });
 
   final data = result.data;

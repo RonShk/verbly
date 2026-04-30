@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/demo_user.dart';
+import '../constants/foreign_characters.dart';
 import '../models/production_session_models.dart';
 import '../providers/production_session_provider.dart';
 import '../services/production_session_api_calls.dart';
@@ -477,6 +478,7 @@ class _ProductionSessionPageState
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
+        useForeignCharacters: kUseForeignCharacters,
       );
 
       if (!mounted) return;
@@ -508,6 +510,7 @@ class _ProductionSessionPageState
         userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
+        useForeignCharacters: kUseForeignCharacters,
       );
 
       if (!mounted) return;
