@@ -98,11 +98,29 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data, c
   const isSkipped = studentAnswer.trim() === "(skipped)";
 
   if (isSkipped) {
-    // No AI call: just record the skip and update progress.
+    // Still generate "teaching" feedback so the user sees the correct answer,
+    // but the client will hide the score UI when `skipped=true`.
+    const sentenceInLearningLanguage = question.sentenceInLearningLanguage as string;
+    const vocabWordsUsed = question.vocabWordsUsed as string[];
+
+    const prompt =
+      TranslationPrompts.buildEvaluatePrompt(
+      sentenceInLearningLanguage,
+      vocabWordsUsed,
+      "(skipped) — the student chose to skip. Provide the correct English translation and brief teaching feedback."
+    ) +
+      "\n\nIMPORTANT OUTPUT REQUIREMENTS:\n" +
+      "- Write ALL feedback and explanations in English.\n" +
+      "- feedback: 1 short sentence summarizing the meaning.\n" +
+      "- explanations: a few short, helpful bullets in English (more detailed than feedback).\n" +
+      "- Use English category names like 'Vocabulary' and 'Grammar'.";
+
+    const evaluation = await generateStructured(prompt, EvaluationSchema);
+
     questions[questionIndex] = {
       ...question,
       studentAnswer: "(skipped)",
-      aiEvaluation: null,
+      aiEvaluation: evaluation,
     };
     await questionSetRef.update({questions});
 
@@ -119,11 +137,11 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data, c
     );
 
     return {
-      score: 0,
-      feedback: "",
-      correctedVersion: "",
-      correctedVersionSegments: [],
-      explanations: [],
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+      correctedVersion: evaluation.correctedVersion,
+      correctedVersionSegments: evaluation.correctedVersionSegments ?? [],
+      explanations: evaluation.explanations,
       completedQuestionCount,
       totalQuestionCount,
       assignmentCompleted,
