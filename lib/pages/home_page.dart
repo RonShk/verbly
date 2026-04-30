@@ -22,6 +22,12 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   Timer? _midnightTimer;
+  static const List<String> _modeOrder = ['VOCAB', 'PRODUCTION', 'TRANSLATION'];
+
+  int _modeOrderIndex(String type) {
+    final idx = _modeOrder.indexOf(type.toUpperCase());
+    return idx == -1 ? _modeOrder.length : idx;
+  }
 
   @override
   void initState() {
@@ -104,16 +110,20 @@ class _HomePageState extends ConsumerState<HomePage> {
       todoAssignments: todoAssignments,
       completed: completed,
     );
-    _addTranslationCards(
-      translationDaily: translationDaily,
-      todoAssignments: todoAssignments,
-      completed: completed,
-    );
     _addProductionCards(
       productionDaily: productionDaily,
       todoAssignments: todoAssignments,
       completed: completed,
     );
+    _addTranslationCards(
+      translationDaily: translationDaily,
+      todoAssignments: todoAssignments,
+      completed: completed,
+    );
+
+    // Ensure UI order is always: Vocab → Production → Translation.
+    todoAssignments.sort((a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)));
+    completed.sort((a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)));
 
     return CustomScrollView(
       slivers: [
