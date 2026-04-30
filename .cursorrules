@@ -1,2 +1,7 @@
-* **Branching:** Never commit to `main`; if on `main`, create and switch to `feature/<short-name>` before making changes; if already on a feature branch, stay on it.
-* **Formatting:** Keep simple logic (booleans, ternaries, null checks) on one line when readable; no unnecessary line breaks or verbose formatting.
+- **Branching:** Never commit to `main`; if on `main`, create and switch to `feature/<short-name>` before making changes; if already on a feature branch, stay on it.
+
+- **Formatting:** Never split simple assignments, ternaries, boolean expressions, or short statements across multiple lines. These must always remain on a single line if they fit within a normal line length.
+
+- **Line breaks:** Do not introduce line breaks for readability in short expressions. Multi-line formatting is only allowed for genuinely long or complex logic.
+
+- **Output rule:** If a statement can fit on one line, it must be on one line.

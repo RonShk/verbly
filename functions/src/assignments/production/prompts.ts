@@ -48,13 +48,22 @@ export const ProductionPrompts = {
   buildEvaluatePrompt(
     sentenceInNativeLanguage: string,
     vocabWordsUsed: string[],
-    studentAnswer: string
+    studentAnswer: string,
+    useForeignCharacters: boolean = true
   ): string {
+    const foreignCharInstruction = useForeignCharacters
+      ? ""
+      : "\n\nIMPORTANT: The student does NOT use foreign characters / diacritics on their keyboard. " +
+          "Do NOT penalize missing or incorrect Spanish diacritics (accents/ñ/ü) if the underlying letters/words are otherwise correct. " +
+          "For example, treat 'como' vs 'cómo', 'senor' vs 'señor', and 'anio' vs 'año' as acceptable and do NOT mark them as wrong. " +
+          "When producing correctedVersionSegments, do NOT highlight accent-only differences as 'wrong'/'correct' — mark those segments as 'none'.";
+
     return (
       `${ProductionPrompts.evaluateHighLevel}\n\n` +
       `The student was asked to translate this English sentence into Spanish:\n"${sentenceInNativeLanguage}"\n\n` +
       `The key Spanish vocabulary words they should use: ${vocabWordsUsed.join(", ")}\n\n` +
-      `The student wrote: "${studentAnswer}"`
+      `The student wrote: "${studentAnswer}"` +
+      foreignCharInstruction
     );
   },
 
