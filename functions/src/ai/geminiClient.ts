@@ -25,7 +25,7 @@ export const GEMINI_MODEL = "gemini-3-flash-preview";
 
 const BASE_CONFIG: GenerateContentConfig = {
   thinkingConfig: {
-    thinkingLevel: ThinkingLevel.LOW,
+    thinkingLevel: ThinkingLevel.MEDIUM,
   },
 };
 
