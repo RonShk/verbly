@@ -515,14 +515,11 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
       if (!mounted) return;
 
-      if (result.assignmentCompleted) {
-        _invalidateHome();
-        context.go('/home');
-        return;
-      }
-
-      _refreshSession();
-      _resetState();
+      setState(() {
+        _evaluationResult = result;
+        _submittedAnswer = '(skipped)';
+        _isSubmitting = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -558,6 +555,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     int currentCardIndex,
     int total,
   ) {
+    final isSkipped = result.skipped;
     return Column(
       children: [
         _buildFeedbackHeader(context),
@@ -568,32 +566,15 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                _buildScoreRing(result.score),
-                const SizedBox(height: 16),
-                Center(
-                  child: Text(
-                    result.feedback,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Center(
-                  child: Text(
-                    _feedbackSubtitle(result.score),
-                    style: const TextStyle(
-                      color: AppColors.navbarInactive,
-                      fontSize: 13,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _buildResponseSection(submittedAnswer),
-                const SizedBox(height: 20),
+                if (!isSkipped) ...[
+                  _buildScoreRing(result.score),
+                  const SizedBox(height: 24),
+                  _buildResponseSection(submittedAnswer),
+                  const SizedBox(height: 16),
+                ] else ...[
+                  _buildTargetPhraseSection(q.sentenceInLearningLanguage),
+                  const SizedBox(height: 16),
+                ],
                 _buildCorrectedSection(result),
                 const SizedBox(height: 20),
                 if (result.explanations.isNotEmpty) ...[
@@ -683,13 +664,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     );
   }
 
-  String _feedbackSubtitle(int score) {
-    if (score >= 90) return 'Your translation accuracy is excellent.';
-    if (score >= 70) return 'Your translation accuracy is improving.';
-    if (score >= 50) return 'Keep working on meaning and word choice.';
-    return 'Review the corrections and try again next time.';
-  }
-
   Widget _buildResponseSection(String submittedAnswer) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,9 +700,56 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     );
   }
 
+  Widget _buildTargetPhraseSection(String targetPhrase) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.translate,
+                color: AppColors.blueHighlighted,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'TARGET PHRASE',
+                style: TextStyle(
+                  color: AppColors.blueHighlighted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            targetPhrase,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCorrectedSection(TranslationEvaluationResult result) {
     final segments = result.correctedVersionSegments;
-    final hasHighlights = segments != null &&
+    final hasHighlights = !result.skipped &&
+        segments != null &&
         segments.isNotEmpty &&
         segments.any((s) => s.highlight != 'none');
 
@@ -737,30 +758,19 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
       children: [
         Row(
           children: [
-            const Text(
-              'CORRECTED VERSION',
-              style: TextStyle(
-                color: AppColors.navbarInactive,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5,
-              ),
+            const Icon(
+              Icons.check_circle_outline,
+              color: AppColors.success,
+              size: 18,
             ),
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'AI IMPROVED',
-                style: TextStyle(
-                  color: AppColors.blueHighlighted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                ),
+            const Text(
+              'CORRECT TRANSLATION',
+              style: TextStyle(
+                color: AppColors.success,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -772,8 +782,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
           decoration: BoxDecoration(
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
+            border: Border.all(color: AppColors.cardBorder),
           ),
           child: hasHighlights
               ? RichText(

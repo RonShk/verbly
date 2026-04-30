@@ -110,11 +110,30 @@ export const evaluateProductionResponse = functions.https.onCall(
     const isSkipped = studentAnswer.trim() === "(skipped)";
 
     if (isSkipped) {
-    // No AI call: just record the skip and update progress.
+      // Still generate "teaching" feedback so the user sees the correct answer,
+      // but the client will hide the score UI when `skipped=true`.
+      const sentenceInNativeLanguage = question.sentenceInNativeLanguage as string;
+      const vocabWordsUsed = question.vocabWordsUsed as string[];
+
+      const prompt =
+        ProductionPrompts.buildEvaluatePrompt(
+        sentenceInNativeLanguage,
+        vocabWordsUsed,
+        "(skipped) — the student chose to skip. Provide the correct Spanish translation and brief teaching feedback.",
+        useForeignCharactersBool
+      ) +
+        "\n\nIMPORTANT OUTPUT REQUIREMENTS:\n" +
+        "- Write ALL feedback and explanations in English.\n" +
+        "- feedback: 1 short sentence explaining what the corrected Spanish means in English.\n" +
+        "- explanations: a few short, helpful bullets in English (more detailed than feedback).\n" +
+        "- Use English category names like 'Vocabulary' and 'Grammar'.";
+
+      const evaluation = await generateStructured(prompt, EvaluationSchema);
+
       questions[questionIndex] = {
         ...question,
         studentAnswer: "(skipped)",
-        aiEvaluation: null,
+        aiEvaluation: evaluation,
       };
       await questionSetRef.update({questions});
 
@@ -131,11 +150,11 @@ export const evaluateProductionResponse = functions.https.onCall(
       );
 
       return {
-        score: 0,
-        feedback: "",
-        correctedVersion: "",
-        correctedVersionSegments: [],
-        explanations: [],
+        score: evaluation.score,
+        feedback: evaluation.feedback,
+        correctedVersion: evaluation.correctedVersion,
+        correctedVersionSegments: evaluation.correctedVersionSegments ?? [],
+        explanations: evaluation.explanations,
         completedQuestionCount,
         totalQuestionCount,
         assignmentCompleted,
