@@ -20,6 +20,7 @@ class VocabSessionPage extends ConsumerStatefulWidget {
 class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   bool _isFlipped = false;
   int _currentIndex = 0;
+  bool _scheduledAutoHomeNav = false;
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     super.didUpdateWidget(oldWidget);
     if (widget.assignmentId != oldWidget.assignmentId) {
       _currentIndex = 0;
+      _scheduledAutoHomeNav = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(vocabSessionProvider.notifier).clear();
         ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
@@ -92,32 +94,20 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             final currentIndex = _currentIndex;
 
             if (questions.isEmpty || currentIndex >= questions.length) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'All done!',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _onContinueReview,
-                      style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.button),
-                      child: const Text('Continue Review'),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => context.go('/home'),
-                      style: TextButton.styleFrom(
-                          foregroundColor: AppColors.navbarInactive),
-                      child: const Text('Back to Home'),
-                    ),
-                  ],
+              // Match Production/Translation behavior: finishing the last item
+              // returns the user to Home instead of showing an intermediate
+              // completion screen.
+              if (!_scheduledAutoHomeNav) {
+                _scheduledAutoHomeNav = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  context.go('/home');
+                });
+              }
+
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.blueHighlighted,
                 ),
               );
             }
@@ -384,14 +374,6 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
         ],
       ),
     );
-  }
-
-  Future<void> _onContinueReview() async {
-    setState(() {
-      _isFlipped = false;
-      _currentIndex = 0;
-    });
-    await ref.read(vocabSessionProvider.notifier).startContinueReview(widget.assignmentId);
   }
 
   Future<void> _onRating(
