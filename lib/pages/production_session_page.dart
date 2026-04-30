@@ -22,13 +22,24 @@ class ProductionSessionPage extends ConsumerStatefulWidget {
 class _ProductionSessionPageState
     extends ConsumerState<ProductionSessionPage> {
   final _answerController = TextEditingController();
+  final _answerFocusNode = FocusNode();
   bool _isSubmitting = false;
   ProductionEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
 
+  void _focusAnswerInput() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_answerFocusNode.canRequestFocus) {
+        _answerFocusNode.requestFocus();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _answerController.dispose();
+    _answerFocusNode.dispose();
     super.dispose();
   }
 
@@ -104,6 +115,7 @@ class _ProductionSessionPageState
               );
             }
 
+            _focusAnswerInput();
             return _buildQuestionView(
               context,
               session,
@@ -374,6 +386,8 @@ class _ProductionSessionPageState
         children: [
           TextField(
             controller: _answerController,
+            focusNode: _answerFocusNode,
+            autofocus: true,
             onChanged: (_) => setState(() {}),
             maxLines: 3,
             minLines: 3,
@@ -524,6 +538,7 @@ class _ProductionSessionPageState
       _evaluationResult = null;
       _submittedAnswer = null;
     });
+    _focusAnswerInput();
   }
 
   // ---------------------------------------------------------------------------
