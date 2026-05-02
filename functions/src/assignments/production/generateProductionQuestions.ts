@@ -7,6 +7,9 @@ import {ProductionPrompts} from "./prompts";
 
 const db = admin.firestore();
 
+/** Must match the story prompt in ProductionPrompts.buildGeneratePrompt (exactly N sentences). */
+const PRODUCTION_QUESTION_COUNT = 10;
+
 const generationSchemaDescriptions = ProductionPrompts.descriptions.generate;
 
 const ProductionQuestionSchema = z.object({
@@ -36,7 +39,7 @@ export async function generateProductionQuestions(
   }
 
   const wordPairs = words.map((w) => `${w.learningLanguageWord} (${w.englishWord})`).join(", ");
-  const prompt = ProductionPrompts.buildGeneratePrompt(wordPairs, 10);
+  const prompt = ProductionPrompts.buildGeneratePrompt(wordPairs, PRODUCTION_QUESTION_COUNT);
 
   const result = await generateStructured(prompt, ProductionResponseSchema);
 

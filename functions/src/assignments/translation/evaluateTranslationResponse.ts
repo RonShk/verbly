@@ -112,8 +112,8 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data, c
       "\n\nIMPORTANT OUTPUT REQUIREMENTS:\n" +
       "- Write ALL feedback and explanations in English.\n" +
       "- feedback: 1 short sentence summarizing the meaning.\n" +
-      "- explanations: a few short, helpful bullets in English (more detailed than feedback).\n" +
-      "- Use English category names like 'Vocabulary' and 'Grammar'.";
+      "- explanations: a few teaching-focused bullets (meaning, idiom, nuance)—not exercise requirements.\n" +
+      "- Use English category names like 'Meaning' and 'Natural English'.";
 
     const evaluation = await generateStructured(prompt, EvaluationSchema);
 
