@@ -125,8 +125,8 @@ export const evaluateProductionResponse = functions.https.onCall(
         "\n\nIMPORTANT OUTPUT REQUIREMENTS:\n" +
         "- Write ALL feedback and explanations in English.\n" +
         "- feedback: 1 short sentence explaining what the corrected Spanish means in English.\n" +
-        "- explanations: a few short, helpful bullets in English (more detailed than feedback).\n" +
-        "- Use English category names like 'Vocabulary' and 'Grammar'.";
+        "- explanations: a few teaching-focused bullets (grammar, usage, nuance)—not exercise requirements.\n" +
+        "- Use English category names like 'Collocation' and 'Verb form'.";
 
       const evaluation = await generateStructured(prompt, EvaluationSchema);
 

@@ -23,27 +23,35 @@ export const TranslationPrompts = {
       },
       explanation: {
         category:
-          "E.g. 'Preposition Usage', 'Vocabulary', 'Word Order', 'Meaning Accuracy'.",
+          "Teaching topic only, e.g. 'False friend', 'English idiom', 'Word order', 'Register'. Never meta labels like 'Exercise requirement'.",
         detail:
-          "A clear, concise explanation of what was done well or what to improve in the English translation.",
+          "Teach something reusable: why this English wording matches the Spanish meaning or tone, how a synonym differs in nuance, or a grammar point. Never say the learner erred because a word was assigned, required, in the prompt, or part of the lesson.",
       },
     },
     /** Descriptions for the question generation schema (generateTranslationQuestions). */
     generate: {
       sentenceInLearningLanguage:
-        "A natural Spanish sentence that uses 1-3 of the given vocabulary words. The student will translate this into English.",
+        "One Spanish sentence that continues the same mini-story as the other sentences in order; avoid unrelated ideas in the same sentence. The student translates this into English.",
       vocabWordsUsed:
-        "Array of the Spanish vocabulary words that appear in this sentence.",
+        "Spanish expressions from the session vocabulary list that actually appear in this sentence (often 1–3; fewer is fine). Each Spanish expression at most once across all sentences.",
     },
   },
+
+  /** Pedagogy rules appended to every evaluation request (translation). */
+  evaluatePedagogyBlock:
+    "\n\nPEDAGOGY AND TONE (required):\n" +
+    "- Teach English like a tutor: meaning, natural idiom, false friends, word order, and register—Spanish structure often maps to English differently.\n" +
+    "- The Spanish expressions listed are anchors for meaning and nuance, not a mandate that the English must use one specific gloss. If the student's English preserves the Spanish meaning and sounds natural, score well; use explanations to compare synonyms only when it helps learning.\n" +
+    "- Never justify feedback with assigned vocabulary, required words, or prompt instructions.\n" +
+    "- Forbidden phrases in explanations and feedback include variations of: required by the exercise, you had to mirror, specified vocabulary, not what was asked for as vocabulary.\n" +
+    "- explanations[].detail must give a reusable insight—not that an English word was wrong because it was not the lesson's favorite.",
 
   /** High-level instruction for evaluation (no dynamic context). */
   evaluateHighLevel:
     "You are a Spanish teacher evaluating a student's translation from Spanish to English. " +
     "The student was shown a Spanish sentence and wrote an English translation. " +
-    "Evaluate their English translation for: (1) Meaning accuracy (does the English convey the same meaning as the Spanish?), " +
-    "(2) Correct use of equivalent vocabulary where the target Spanish words were used, " +
-    "(3) Natural, grammatical English. " +
+    "Prioritize faithful meaning and natural English. " +
+    "Grammar and word choice matter when they change meaning or sound clearly wrong; reasonable paraphrases and close synonyms are acceptable when they match the Spanish. " +
     "Respond with the JSON object described by the schema.",
 
   /** Builds the full evaluate prompt with context. */
@@ -52,43 +60,62 @@ export const TranslationPrompts = {
     vocabWordsUsed: string[],
     studentAnswer: string
   ): string {
+    const vocabLine =
+      vocabWordsUsed.length > 0
+        ? `Spanish expressions highlighted for this sentence (use them to judge intent and nuance; English equivalents may vary): ${vocabWordsUsed.join(", ")}`
+        : "No separate vocab list for this item.";
+
     return (
       `${TranslationPrompts.evaluateHighLevel}\n\n` +
       `The Spanish sentence the student was asked to translate:\n"${sentenceInLearningLanguage}"\n\n` +
-      `The key Spanish vocabulary words in that sentence: ${vocabWordsUsed.join(", ")}\n\n` +
-      `The student's English translation: "${studentAnswer}"`
+      `${vocabLine}\n\n` +
+      `The student's English translation: "${studentAnswer}"` +
+      TranslationPrompts.evaluatePedagogyBlock
     );
   },
 
-  /** High-level instruction for question generation (context injected by builder). */
-  generateHighLevel:
-    "You are a Spanish teacher creating translation practice (Spanish to English). " +
-    "Generate Spanish sentences that a student must translate into English. " +
-    "Each sentence should use 1-3 of the given Spanish vocabulary words in a natural context. " +
-    "Sentences should: be written in natural Spanish; range from simple to moderately complex; " +
-    "provide real-world context (formal introductions, business, daily life, etc.). " +
-    "STRICT VOCABULARY RULE: Each Spanish sentence must use ONLY words from the vocabulary pairs provided, plus the allowed function words listed below. " +
-    "Do NOT use any other Spanish content words (nouns, verbs, adjectives, adverbs) that are not in the vocabulary pairs. " +
-    "Allowed Spanish function words (and only these, beyond the vocab pairs): " +
-    "el, la, los, las, un, una, unos, unas, de, en, a, con, por, para, que, y, o, pero, no, sí, " +
-    "es, son, está, están, hay, ser, estar, " +
-    "yo, tú, él, ella, usted, nosotros, ellos, ellas, ustedes, " +
-    "me, te, se, le, lo, la, les, nos, " +
-    "mi, tu, su, mis, tus, sus, nuestro, nuestra, " +
-    "este, esta, estos, estas, ese, esa, " +
-    "muy, más, también, ya, aquí, allí, hoy, mañana, " +
-    "al, del, como, cuando, donde, porque, si, " +
-    "uno, dos, tres, cuatro, cinco, " +
-    "señor, señora, señorita. " +
-    "You may also use proper nouns (names of people, cities, countries). Nothing else. " +
-    "Respond with the JSON object described by the schema.",
-
-  /** Builds the full generate prompt with context. */
+  /**
+   * Full user prompt for structured generation: connected mini-story in Spanish,
+   * flexible use of session vocabulary, natural Spanish for native speakers.
+   */
   buildGeneratePrompt(wordPairs: string, count: number): string {
-    return (
-      `${TranslationPrompts.generateHighLevel}\n\n` +
-      `Given these Spanish-English vocabulary pairs: ${wordPairs}\n\n` +
-      `Generate ${count} such Spanish sentences. Remember: only use content words from the vocabulary pairs above.`
-    );
+    const n = String(count);
+    return [
+      "You are a Spanish teacher creating translation practice (Spanish to English).",
+      "The student will read each Spanish sentence and type an English translation.",
+      "You write only the Spanish lines in sentenceInLearningLanguage; list the Spanish target expressions for that line in vocabWordsUsed.",
+      "Beyond those targets, use normal Spanish articles, pronouns, prepositions, conjunctions, and other common words so every sentence sounds natural to native speakers.",
+      "",
+      "Hard rules:",
+      "",
+      `1. Output exactly ${n} Spanish sentences in order. Together they must read as one continuous mini-story: same setting/characters unless you explain a change (time skip, new location) in its own sentence first.`,
+      "",
+      "2. Coverage (flexible): You are given Spanish–English vocabulary below. Use as many items as you can while keeping the story smooth.",
+      "You do NOT need to use every expression. If forcing an expression would require a weird topic jump, nonsense detail, or unnatural Spanish, skip that expression rather than breaking the story.",
+      "Prefer fewer well-connected sentences over cramming every phrase.",
+      "",
+      '3. No "two unrelated ideas in one sentence": Each sentence should have one clear situation or beat.',
+      'Do not combine unrelated events in the same sentence with "pero," "y," or commas just to pack vocabulary (for example, do not jump from dinner food to missing toilet paper in one sentence unless the restroom issue was already introduced or you clearly set up why it belongs there).',
+      "",
+      "4. Plant before you pivot: If you introduce a new concrete thing (centerpiece, artist, frog, napkin holder, restroom, ex-partner, dough), mention or imply it one sentence earlier when possible, or open the sentence with setup so the reader is not blindsided.",
+      "",
+      "5. Cause → effect: When you add conflict or humor, show why it matters to characters we already know. Avoid random one-off absurdity unless you established that tone from the start.",
+      "",
+      "6. Spanish naturalness (most important): Every sentence must sound like something a native speaker would actually say in conversation or light fiction—idiomatic, clear, and coherent.",
+      "",
+      "7. English translation clarity: Phrase the Spanish so that a correct English translation is clear and idiomatic (not a confusing puzzle for the student).",
+      "",
+      "8. Meaning alignment: Each Spanish sentence should express one clear meaning that matches the vocabulary targets you list; avoid contradictions or mixed scenes.",
+      "",
+      "Optional expressions (use when they fit the story; none are mandatory):",
+      wordPairs,
+      "",
+      "Self-check before you answer:",
+      `- Exactly ${n} Spanish sentences.`,
+      "- Reading in order: each sentence follows naturally from the previous; no sudden new subplot mid-sentence.",
+      "- No sentence stacks two unrelated scenes just to use vocabulary.",
+      "- vocabWordsUsed: only Spanish phrases taken from the expressions in the list above that truly appear in sentenceInLearningLanguage for that item; do not repeat the same Spanish expression in two different sentences.",
+      "- If you did not use every expression, that is acceptable—coherence comes first.",
+    ].join("\n");
   },
 } as const;

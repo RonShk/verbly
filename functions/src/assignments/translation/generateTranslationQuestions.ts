@@ -7,6 +7,9 @@ import {TranslationPrompts} from "./prompts";
 
 const db = admin.firestore();
 
+/** Must match TranslationPrompts.buildGeneratePrompt (exactly N sentences). */
+const TRANSLATION_QUESTION_COUNT = 10;
+
 const generationSchemaDescriptions = TranslationPrompts.descriptions.generate;
 
 const TranslationQuestionSchema = z.object({
@@ -36,7 +39,7 @@ export async function generateTranslationQuestions(
   }
 
   const wordPairs = words.map((w) => `${w.learningLanguageWord} (${w.englishWord})`).join(", ");
-  const prompt = TranslationPrompts.buildGeneratePrompt(wordPairs, 10);
+  const prompt = TranslationPrompts.buildGeneratePrompt(wordPairs, TRANSLATION_QUESTION_COUNT);
 
   const result = await generateStructured(prompt, TranslationResponseSchema);
 
