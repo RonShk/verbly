@@ -18,15 +18,9 @@ export const startTranslationSession = functions.https.onCall(async (data, conte
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
 
-  const userId = data?.userId;
+  const userId = context.auth.uid;
   const assignmentId = data?.assignmentId;
 
-  if (!userId || typeof userId !== "string") {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "userId is required."
-    );
-  }
   if (!assignmentId || typeof assignmentId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",

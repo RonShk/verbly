@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../constants/demo_user.dart';
 import '../models/production_session_models.dart';
 import '../services/production_session_api_calls.dart';
 
@@ -52,7 +51,7 @@ class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>>
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final dto = await getProductionSession(userId: demoUserId);
+      final dto = await getProductionSession();
       return ProductionDailyState(
         placement: dto.placement,
         assignmentId: dto.assignmentId,
@@ -86,9 +85,6 @@ final productionDailyProvider =
 final productionStartSessionProvider =
     FutureProvider.autoDispose.family<ProductionSessionData, String>(
   (ref, assignmentId) async {
-    return startProductionSession(
-      userId: demoUserId,
-      assignmentId: assignmentId,
-    );
+    return startProductionSession(assignmentId: assignmentId);
   },
 );

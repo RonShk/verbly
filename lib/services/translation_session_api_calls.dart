@@ -68,10 +68,9 @@ class TranslationDailyStatus {
 /// Fetch today's Translation assignment status. Stub-only: does NOT generate
 /// questions. Use this from Home to decide whether to show the card under
 /// Todo vs Completed.
-Future<TranslationDailyStatus> getTranslationSession({required String userId,}) async {
+Future<TranslationDailyStatus> getTranslationSession() async {
   final callable = FirebaseFunctions.instance.httpsCallable('getTranslationSession');
   final result = await callable.call({
-    'userId': userId,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
@@ -117,10 +116,9 @@ class TranslationContinueReviewPreparation {
 /// Returns the new (or existing) todo's `assignmentId` so the client can
 /// navigate to the session page. AI generation itself happens lazily inside
 /// [startTranslationSession]; this call is fast and fire-and-forget safe.
-Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview({required String userId,}) async {
+Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview() async {
   final callable = FirebaseFunctions.instance.httpsCallable('prepareTranslationContinueReview');
   final result = await callable.call({
-    'userId': userId,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
@@ -137,10 +135,9 @@ Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview({r
 /// Hydrate a Translation assignment and return the full session with
 /// questions. Idempotent: the backend only runs AI generation once per
 /// assignment; repeat calls return the existing questions.
-Future<TranslationSessionData> startTranslationSession({required String userId, required String assignmentId,}) async {
+Future<TranslationSessionData> startTranslationSession({required String assignmentId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('startTranslationSession');
   final result = await callable.call({
-    'userId': userId,
     'assignmentId': assignmentId,
   });
 
@@ -200,14 +197,12 @@ class TranslationEvaluationResult {
 
 Future<TranslationEvaluationResult> evaluateTranslationResponse({
   required String assignmentId,
-  required String userId,
   required int questionIndex,
   required String studentAnswer,
 }) async {
   final callable = FirebaseFunctions.instance.httpsCallable('evaluateTranslationResponse');
   final result = await callable.call({
     'assignmentId': assignmentId,
-    'userId': userId,
     'questionIndex': questionIndex,
     'studentAnswer': studentAnswer,
   });

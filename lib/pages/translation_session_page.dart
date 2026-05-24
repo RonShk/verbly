@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/demo_user.dart';
 import '../models/translation_session_models.dart';
 import '../providers/translation_session_provider.dart';
 import '../services/translation_session_api_calls.dart';
@@ -477,7 +476,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     try {
       final result = await evaluateTranslationResponse(
         assignmentId: widget.assignmentId,
-        userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
       );
@@ -508,7 +506,6 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     try {
       final result = await evaluateTranslationResponse(
         assignmentId: widget.assignmentId,
-        userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
       );

@@ -2,11 +2,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/vocab_session_models.dart';
 
-Future<VocabSessionData> getVocabSession({required String assignmentId, required String userId,}) async {
+Future<VocabSessionData> getVocabSession({required String assignmentId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('getVocabSession');
   final result = await callable.call({
     'assignmentId': assignmentId,
-    'userId': userId,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
@@ -19,10 +18,9 @@ Future<VocabSessionData> getVocabSession({required String assignmentId, required
 }
 
 /// Rating for FSRS: 1 = Again, 2 = Hard, 3 = Good, 4 = Easy.
-Future<VocabResponseResult> recordVocabResponse({required String userId, required String vocabCardId, required int rating, int? totalQuestionCount, int? completedQuestionCount,}) async {
+Future<VocabResponseResult> recordVocabResponse({required String vocabCardId, required int rating, int? totalQuestionCount, int? completedQuestionCount,}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('recordVocabResponse');
   final payload = <String, dynamic>{
-    'userId': userId,
     'vocabCardId': vocabCardId,
     'rating': rating,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,

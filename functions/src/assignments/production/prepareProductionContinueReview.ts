@@ -31,15 +31,8 @@ export const prepareProductionContinueReview = functions.https.onCall(async (dat
       throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
     }
 
-    const userId = data?.userId;
+    const userId = context.auth.uid;
     const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : -(new Date().getTimezoneOffset());
-
-    if (!userId || typeof userId !== "string") {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "userId is required."
-      );
-    }
 
     const todayStr = getTodayDateString(timezoneOffsetMinutes);
 

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../constants/demo_user.dart';
 import '../models/vocab_session_models.dart';
 import '../services/vocab_session_api_calls.dart';
 
@@ -51,10 +50,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
     
-      final session = await getVocabSession(
-          assignmentId: assignmentId,
-          userId: demoUserId,
-      );
+      final session = await getVocabSession(assignmentId: assignmentId);
 
       return VocabSessionState(
         session: session,
@@ -81,10 +77,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      final session = await getVocabSession(
-        assignmentId: assignmentId,
-        userId: demoUserId,
-      );
+      final session = await getVocabSession(assignmentId: assignmentId);
       final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
       return VocabSessionState(
         session: session,

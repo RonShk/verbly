@@ -58,7 +58,7 @@ export const ProductionPrompts = {
     sentenceInNativeLanguage: string,
     vocabWordsUsed: string[],
     studentAnswer: string,
-    useForeignCharacters: boolean = true
+    useForeignCharacters = true
   ): string {
     const foreignCharInstruction = useForeignCharacters
       ? ""
@@ -104,8 +104,8 @@ export const ProductionPrompts = {
       "You do NOT need to use every expression. If forcing an expression would require a weird topic jump, nonsense detail, or unnatural English, skip that expression rather than breaking the story.",
       "Prefer fewer well-connected sentences over cramming every phrase.",
       "",
-      '3. No "two unrelated ideas in one sentence": Each sentence should have one clear situation or beat.',
-      'Do not combine unrelated events in the same sentence with "but," "and," or commas just to pack vocabulary (for example, do not jump from dinner food to missing toilet paper in one sentence unless the restroom issue was already introduced or you clearly set up why it belongs there).',
+      "3. No \"two unrelated ideas in one sentence\": Each sentence should have one clear situation or beat.",
+      "Do not combine unrelated events in the same sentence with \"but,\" \"and,\" or commas just to pack vocabulary (for example, do not jump from dinner food to missing toilet paper in one sentence unless the restroom issue was already introduced or you clearly set up why it belongs there).",
       "",
       "4. Plant before you pivot: If you introduce a new concrete thing (centerpiece, artist, frog, napkin holder, restroom, ex-partner, dough), mention or imply it one sentence earlier when possible, or open the sentence with setup so the reader is not blindsided.",
       "",
