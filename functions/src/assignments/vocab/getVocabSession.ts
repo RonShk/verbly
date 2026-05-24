@@ -88,12 +88,12 @@ export const getVocabSession = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
+  const userId = context.auth.uid;
   const assignmentId = data?.assignmentId;
-  const userId = data?.userId;
-  if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
+  if (!assignmentId || typeof assignmentId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "assignmentId and userId are required strings."
+      "assignmentId is required."
     );
   }
 

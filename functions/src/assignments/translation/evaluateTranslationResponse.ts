@@ -31,15 +31,15 @@ export const evaluateTranslationResponse = functions.https.onCall(async (data, c
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
+  const userId = context.auth.uid;
   const assignmentId = data?.assignmentId;
-  const userId = data?.userId;
   const questionIndex = data?.questionIndex;
   const studentAnswer = data?.studentAnswer;
 
-  if (!assignmentId || typeof assignmentId !== "string" || !userId || typeof userId !== "string") {
+  if (!assignmentId || typeof assignmentId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "assignmentId and userId are required strings."
+      "assignmentId is required."
     );
   }
 

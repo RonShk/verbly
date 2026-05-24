@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../constants/demo_user.dart';
 import '../models/translation_session_models.dart';
 import '../services/translation_session_api_calls.dart';
 
@@ -52,7 +51,7 @@ class TranslationDailyNotifier extends Notifier<AsyncValue<TranslationDailyState
 
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-    final dto = await getTranslationSession(userId: demoUserId);
+    final dto = await getTranslationSession();
     return TranslationDailyState(
         placement: dto.placement,
         assignmentId: dto.assignmentId,
@@ -83,9 +82,6 @@ final translationDailyProvider = NotifierProvider<TranslationDailyNotifier, Asyn
 final translationStartSessionProvider =
     FutureProvider.autoDispose.family<TranslationSessionData, String>(
   (ref, assignmentId) async {
-    return startTranslationSession(
-      userId: demoUserId,
-      assignmentId: assignmentId,
-    );
+    return startTranslationSession(assignmentId: assignmentId);
   },
 );

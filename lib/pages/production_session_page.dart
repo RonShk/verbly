@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/demo_user.dart';
 import '../constants/foreign_characters.dart';
 import '../models/production_session_models.dart';
 import '../providers/production_session_provider.dart';
@@ -475,7 +474,6 @@ class _ProductionSessionPageState
     try {
       final result = await evaluateProductionResponse(
         assignmentId: widget.assignmentId,
-        userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: answer,
         useForeignCharacters: kUseForeignCharacters,
@@ -507,7 +505,6 @@ class _ProductionSessionPageState
     try {
       final result = await evaluateProductionResponse(
         assignmentId: widget.assignmentId,
-        userId: demoUserId,
         questionIndex: questionIndex,
         studentAnswer: '(skipped)',
         useForeignCharacters: kUseForeignCharacters,

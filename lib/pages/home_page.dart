@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/demo_user.dart';
 import '../models/home_page_models.dart';
 import '../providers/production_session_provider.dart';
 import '../providers/translation_session_provider.dart';
@@ -290,7 +289,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
             try {
-              final prepared = await prepareTranslationContinueReview(userId: demoUserId);
+              final prepared = await prepareTranslationContinueReview();
               assignmentId = prepared.assignmentId;
             } catch (_) {
               return;
@@ -305,8 +304,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
             try {
-              final prepared =
-                  await prepareProductionContinueReview(userId: demoUserId);
+              final prepared = await prepareProductionContinueReview();
               assignmentId = prepared.assignmentId;
             } catch (_) {
               return;

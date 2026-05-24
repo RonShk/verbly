@@ -1,18 +1,62 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Student-owned learning data (userId on doc = Firebase Auth uid).
+    match /vocab_cards/{cardId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    match /vocab_lists/{listId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    match /user_todo_assignments/{assignmentId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    match /user_completed_assignments/{assignmentId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update, delete: if isOwner(resource.data.userId);
+    }
+
+    // Question sets and legacy paths: student app uses Cloud Functions (Admin SDK) only.
+    match /production_question_sets/{document=**} {
+      allow read, write: if false;
+    }
+    match /translation_question_sets/{document=**} {
+      allow read, write: if false;
+    }
+    match /vocab_question_sets/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Tutor schema (Step 4+): deny direct client access; teacher site uses Admin SDK.
+    match /teachers/{document=**} {
+      allow read, write: if false;
+    }
+    match /students/{document=**} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 3, 23);
+      allow read, write: if false;
     }
   }
 }

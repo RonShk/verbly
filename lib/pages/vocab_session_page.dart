@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../constants/demo_user.dart';
 import '../models/vocab_session_models.dart';
 import '../providers/vocab_session_provider.dart';
 import '../services/vocab_session_api_calls.dart';
@@ -385,7 +384,6 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   ) async {
     final state = ref.read(vocabSessionProvider).value;
     final result = await recordVocabResponse(
-      userId: demoUserId,
       vocabCardId: q.vocabCardId,
       rating: rating,
       totalQuestionCount: state?.session.totalQuestionCount ?? 0,

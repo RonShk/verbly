@@ -68,10 +68,9 @@ class ProductionDailyStatus {
 /// Fetch today's Production assignment status. Stub-only: does NOT generate
 /// questions. Use this from Home to decide whether to show the card under
 /// Todo vs Completed.
-Future<ProductionDailyStatus> getProductionSession({required String userId,}) async {
+Future<ProductionDailyStatus> getProductionSession() async {
   final callable = FirebaseFunctions.instance.httpsCallable('getProductionSession');
   final result = await callable.call({
-    'userId': userId,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
@@ -117,10 +116,9 @@ class ProductionContinueReviewPreparation {
 /// Returns the new (or existing) todo's `assignmentId` so the client can
 /// navigate to the session page. AI generation itself happens lazily inside
 /// [startProductionSession]; this call is fast and fire-and-forget safe.
-Future<ProductionContinueReviewPreparation> prepareProductionContinueReview({required String userId,}) async {
+Future<ProductionContinueReviewPreparation> prepareProductionContinueReview() async {
   final callable = FirebaseFunctions.instance.httpsCallable('prepareProductionContinueReview');
   final result = await callable.call({
-    'userId': userId,
     'timezoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
   });
 
@@ -137,10 +135,9 @@ Future<ProductionContinueReviewPreparation> prepareProductionContinueReview({req
 /// Hydrate a Production assignment and return the full session with
 /// questions. Idempotent: the backend only runs AI generation once per
 /// assignment; repeat calls return the existing questions.
-Future<ProductionSessionData> startProductionSession({required String userId, required String assignmentId,}) async {
+Future<ProductionSessionData> startProductionSession({required String assignmentId}) async {
   final callable = FirebaseFunctions.instance.httpsCallable('startProductionSession');
   final result = await callable.call({
-    'userId': userId,
     'assignmentId': assignmentId,
   });
 
@@ -200,7 +197,6 @@ class ProductionEvaluationResult {
 
 Future<ProductionEvaluationResult> evaluateProductionResponse({
   required String assignmentId,
-  required String userId,
   required int questionIndex,
   required String studentAnswer,
   bool useForeignCharacters = true,
@@ -208,7 +204,6 @@ Future<ProductionEvaluationResult> evaluateProductionResponse({
   final callable = FirebaseFunctions.instance.httpsCallable('evaluateProductionResponse');
   final result = await callable.call({
     'assignmentId': assignmentId,
-    'userId': userId,
     'questionIndex': questionIndex,
     'studentAnswer': studentAnswer,
     'useForeignCharacters': useForeignCharacters,

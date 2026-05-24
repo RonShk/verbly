@@ -12,7 +12,20 @@
           "package_name": "com.example.vocab_forge"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "47390662133-j4glvnp51ct1ticl4mlscdmgtig3cfsp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.vocab_forge",
+            "certificate_hash": "6d85466d4cc76c6834fadb0eec42ab035d943805"
+          }
+        },
+        {
+          "client_id": "47390662133-p3u2gs1u69nftj3d24p0ghpojbvgrh6i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAVx0_6Rwct6wdye3hDU6SjnuPVJYxhhBM"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "47390662133-p3u2gs1u69nftj3d24p0ghpojbvgrh6i.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "47390662133-j95kbo3n5cva3n3grcgmcounrb5ga7ga.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.vocabForge"
+              }
+            }
+          ]
         }
       }
     }

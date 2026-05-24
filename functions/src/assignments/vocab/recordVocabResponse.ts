@@ -30,19 +30,13 @@ export const recordVocabResponse = functions.https.onCall(async (data, context) 
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
-  const userId = data?.userId;
+  const userId = context.auth.uid;
   const vocabCardId = data?.vocabCardId;
   const rating = data?.rating;
   const totalQuestionCount = data?.totalQuestionCount as number | undefined;
   const completedQuestionCount = data?.completedQuestionCount as number | undefined;
   const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : 0;
 
-  if (!userId || typeof userId !== "string") {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "userId is required and must be a string."
-    );
-  }
   if (!vocabCardId || typeof vocabCardId !== "string") {
     throw new functions.https.HttpsError(
       "invalid-argument",
