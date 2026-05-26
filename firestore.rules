@@ -51,8 +51,8 @@ service cloud.firestore {
     match /teachers/{document=**} {
       allow read, write: if false;
     }
-    match /students/{document=**} {
-      allow read, write: if false;
+    match /students/{studentUid} {
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == studentUid;
     }
 
     match /{document=**} {
