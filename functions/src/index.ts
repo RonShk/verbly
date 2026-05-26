@@ -20,5 +20,3 @@ export {getTranslationSession} from "./assignments/translation/getTranslationSes
 export {startTranslationSession} from "./assignments/translation/startTranslationSession";
 export {evaluateTranslationResponse} from "./assignments/translation/evaluateTranslationResponse";
 export {prepareTranslationContinueReview} from "./assignments/translation/prepareTranslationContinueReview";
-
-export {addVocabWords} from "./teacher/addVocabWords";
