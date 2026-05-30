@@ -7,7 +7,7 @@ admin.initializeApp();
 setGlobalOptions({maxInstances: 10});
 
 // Export all functions from their respective modules.
-export {onAuthUserCreated} from "./triggers/onAuthUserCreated";
+export {createStudentDoc} from "./triggers/createStudentDoc";
 export {getVocabSession} from "./assignments/vocab/getVocabSession";
 export {recordVocabResponse} from "./assignments/vocab/recordVocabResponse";
 
