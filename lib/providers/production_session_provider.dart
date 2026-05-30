@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/production_session_models.dart';
 import '../services/production_session_api_calls.dart';
+import '../services/session_generation_api.dart';
 
 /// Immutable daily state for Production used by Home.
 ///
@@ -35,7 +39,7 @@ class ProductionDailyState {
 /// Home-level notifier for today's Production assignment status.
 ///
 /// Calls the stub-only `getProductionSession` callable; does NOT hydrate
-/// questions. Questions are hydrated only via [productionStartSessionProvider]
+/// questions. Questions are hydrated only via [productionSessionStreamProvider]
 /// when the user taps Start/Continue.
 class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>> {
   @override
@@ -76,15 +80,80 @@ final productionDailyProvider =
   ProductionDailyNotifier.new,
 );
 
-/// Family keyed by `assignmentId` that hydrates a Production assignment and
-/// returns the full [ProductionSessionData] with questions.
+/// Family keyed by `assignmentId` that streams a Production session.
 ///
-/// Calls `startProductionSession` on the backend, which may invoke AI
-/// generation (only on first hydration; subsequent calls for the same
-/// assignment are idempotent). Watched by the Production session page.
-final productionStartSessionProvider =
-    FutureProvider.autoDispose.family<ProductionSessionData, String>(
-  (ref, assignmentId) async {
-    return startProductionSession(assignmentId: assignmentId);
+/// 1. Enqueues generation (idempotent, non-blocking) and gets the question set
+///    id + session metadata.
+/// 2. Subscribes to both the assignment doc (live progress counts) and the
+///    question set doc (questions appended as they are generated), emitting a
+///    merged [ProductionSessionData] whenever either changes.
+///
+/// This lets the session page show question 1 the moment it streams in, rather
+/// than blocking until all questions exist.
+final productionSessionStreamProvider =
+    StreamProvider.autoDispose.family<ProductionSessionData, String>(
+  (ref, assignmentId) async* {
+    final enqueue = await enqueueSessionGeneration(assignmentId: assignmentId);
+    yield* _streamProductionSession(enqueue);
   },
 );
+
+Stream<ProductionSessionData> _streamProductionSession(SessionEnqueueResult enqueue) {
+  final firestore = FirebaseFirestore.instance;
+  final assignmentStream = firestore.collection('user_todo_assignments').doc(enqueue.assignmentId).snapshots();
+  final questionSetStream = firestore.collection('production_question_sets').doc(enqueue.questionSetId).snapshots();
+
+  final controller = StreamController<ProductionSessionData>();
+  DocumentSnapshot<Map<String, dynamic>>? assignmentSnap;
+  DocumentSnapshot<Map<String, dynamic>>? questionSetSnap;
+
+  void emit() {
+    if (questionSetSnap == null) return;
+    final qs = questionSetSnap!.data() ?? const {};
+    final assignment = assignmentSnap?.data();
+
+    final status = (qs['status'] as String?) ?? enqueue.status;
+    if (status == 'failed') {
+      controller.addError(Exception((qs['error'] as String?) ?? 'Generation failed.'));
+      return;
+    }
+
+    final rawQuestions = (qs['questions'] as List?) ?? const [];
+    final questions = rawQuestions.map((e) => ProductionQuestion.fromJson(e)).toList()..sort((a, b) => a.index.compareTo(b.index));
+
+    // The todo doc is deleted once the wave is completed; fall back to enqueue
+    // metadata and treat the wave as fully answered in that window.
+    final completed = (assignment?['completedQuestionCount'] as num?)?.toInt() ?? (assignment == null ? enqueue.totalQuestionCount : enqueue.completedQuestionCount);
+    final total = (assignment?['totalQuestionCount'] as num?)?.toInt() ?? enqueue.totalQuestionCount;
+    final cumulativeOffset = (assignment?['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? enqueue.cumulativeOffsetQuestionCount;
+    final teacher = (assignment?['teacher'] as String?) ?? enqueue.teacher;
+
+    controller.add(ProductionSessionData(
+      assignmentId: enqueue.assignmentId,
+      type: enqueue.type,
+      assignmentTitle: enqueue.assignmentTitle,
+      teacher: teacher,
+      totalQuestionCount: total,
+      completedQuestionCount: completed,
+      cumulativeOffsetQuestionCount: cumulativeOffset,
+      questions: questions,
+      generationStatus: status,
+    ));
+  }
+
+  final assignmentSub = assignmentStream.listen((s) {
+    assignmentSnap = s;
+    emit();
+  }, onError: controller.addError);
+  final questionSetSub = questionSetStream.listen((s) {
+    questionSetSnap = s;
+    emit();
+  }, onError: controller.addError);
+
+  controller.onCancel = () async {
+    await assignmentSub.cancel();
+    await questionSetSub.cancel();
+  };
+
+  return controller.stream;
+}

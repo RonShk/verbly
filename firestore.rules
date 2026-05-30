@@ -36,12 +36,16 @@ service cloud.firestore {
       allow update, delete: if isOwner(resource.data.userId);
     }
 
-    // Question sets and legacy paths: student app uses Cloud Functions (Admin SDK) only.
-    match /production_question_sets/{document=**} {
-      allow read, write: if false;
+    // Sentence-practice question sets: the student app subscribes directly to
+    // its own question set docs to stream questions as they are generated.
+    // Writes remain Admin-SDK only (Cloud Functions generation pipeline).
+    match /production_question_sets/{setId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if false;
     }
-    match /translation_question_sets/{document=**} {
-      allow read, write: if false;
+    match /translation_question_sets/{setId} {
+      allow read: if isOwner(resource.data.userId);
+      allow write: if false;
     }
     match /vocab_question_sets/{document=**} {
       allow read, write: if false;

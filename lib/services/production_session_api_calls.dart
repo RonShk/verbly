@@ -12,8 +12,8 @@ enum ProductionDailyPlacement { todo, completed }
 ///
 /// Returned by the stub-only `getProductionSession` callable. Safe to fetch
 /// from Home without triggering AI generation: counts will be 0/10 until the
-/// user taps Start/Continue, at which point `startProductionSession` is
-/// called to hydrate the assignment.
+/// user taps Start/Continue, at which point `enqueueSessionGeneration` is
+/// called to start streaming questions.
 class ProductionDailyStatus {
   const ProductionDailyStatus({
     required this.placement,
@@ -114,8 +114,8 @@ class ProductionContinueReviewPreparation {
 ///
 /// Used when the user taps "Continue review" on a completed Production row.
 /// Returns the new (or existing) todo's `assignmentId` so the client can
-/// navigate to the session page. AI generation itself happens lazily inside
-/// [startProductionSession]; this call is fast and fire-and-forget safe.
+/// navigate to the session page. AI generation itself is started lazily via
+/// `enqueueSessionGeneration`; this call is fast and fire-and-forget safe.
 Future<ProductionContinueReviewPreparation> prepareProductionContinueReview() async {
   final callable = FirebaseFunctions.instance.httpsCallable('prepareProductionContinueReview');
   final result = await callable.call({
@@ -132,24 +132,9 @@ Future<ProductionContinueReviewPreparation> prepareProductionContinueReview() as
   return ProductionContinueReviewPreparation.fromJson(data);
 }
 
-/// Hydrate a Production assignment and return the full session with
-/// questions. Idempotent: the backend only runs AI generation once per
-/// assignment; repeat calls return the existing questions.
-Future<ProductionSessionData> startProductionSession({required String assignmentId}) async {
-  final callable = FirebaseFunctions.instance.httpsCallable('startProductionSession');
-  final result = await callable.call({
-    'assignmentId': assignmentId,
-  });
-
-  final data = result.data;
-  if (data is! Map) {
-    throw Exception(
-      'startProductionSession returned unexpected type: ${data.runtimeType}',
-    );
-  }
-
-  return ProductionSessionData.fromJson(data);
-}
+// Question generation is started via the shared [enqueueSessionGeneration] in
+// session_generation_api.dart; the session page then streams the question set
+// doc from Firestore as questions arrive.
 
 class ProductionEvaluationResult {
   const ProductionEvaluationResult({

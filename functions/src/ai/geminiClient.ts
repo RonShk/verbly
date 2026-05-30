@@ -58,3 +58,32 @@ export async function generateStructured<T>(prompt: string, schema: z.ZodType<T>
   const raw = JSON.parse(text);
   return schema.parse(raw);
 }
+
+/**
+ * Streams a structured JSON response from Gemini. Each text delta from the
+ * stream is passed to `onText`; callers are responsible for accumulating and
+ * parsing partial JSON (see StreamingJsonArrayExtractor).
+ *
+ * Generation defaults to MINIMAL thinking: question generation is a creative
+ * task that does not benefit from deep reasoning, and lower thinking means the
+ * first tokens (and therefore the first question) arrive much sooner.
+ */
+export async function generateStructuredStream<T>(prompt: string, schema: z.ZodType<T>, onText: (textDelta: string) => void | Promise<void>, thinkingLevel: ThinkingLevel = ThinkingLevel.MINIMAL): Promise<void> {
+  const ai = getClient();
+  const jsonSchema = z.toJSONSchema(schema);
+
+  const stream = await ai.models.generateContentStream({
+    model: GEMINI_MODEL,
+    config: {
+      thinkingConfig: {thinkingLevel},
+      responseMimeType: "application/json",
+      responseJsonSchema: jsonSchema,
+    },
+    contents: [{role: "user", parts: [{text: prompt}]}],
+  });
+
+  for await (const chunk of stream) {
+    const textDelta = chunk.text;
+    if (textDelta) await onText(textDelta);
+  }
+}
