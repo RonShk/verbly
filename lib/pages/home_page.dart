@@ -9,6 +9,7 @@ import '../providers/production_session_provider.dart';
 import '../providers/translation_session_provider.dart';
 import '../providers/vocab_session_provider.dart';
 import '../services/production_session_api_calls.dart';
+import '../services/session_generation_api.dart';
 import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
@@ -21,6 +22,14 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   Timer? _midnightTimer;
+
+  /// Fires after the user dwells on Home for [_prefetchDwell]; we then kick off
+  /// background generation for today's sentence-practice modes so questions are
+  /// (partly) ready by the time they tap Start. Tied to a tangible engagement
+  /// signal — lingering on Home — rather than generating for every user.
+  Timer? _prefetchTimer;
+  static const Duration _prefetchDwell = Duration(seconds: 6);
+  bool _prefetchRequested = false;
   static const List<String> _modeOrder = ['VOCAB', 'PRODUCTION', 'TRANSLATION'];
 
   int _modeOrderIndex(String type) {
@@ -34,7 +43,39 @@ class _HomePageState extends ConsumerState<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadModesIfNeeded();
       _scheduleMidnightTimer();
+      _schedulePrefetch();
     });
+  }
+
+  /// Schedule a one-shot prefetch after the user has dwelled on Home. Idempotent
+  /// per page lifetime (server-side enqueue is also idempotent per day).
+  void _schedulePrefetch() {
+    _prefetchTimer?.cancel();
+    _prefetchTimer = Timer(_prefetchDwell, _prefetchSentenceModes);
+  }
+
+  /// Background-generate today's Translation/Production questions if they are
+  /// still TODO with no progress. Fire-and-forget: failures are ignored (the
+  /// session page will enqueue again on open).
+  void _prefetchSentenceModes() {
+    if (_prefetchRequested || !mounted) return;
+    _prefetchRequested = true;
+
+    final translation = ref.read(translationDailyProvider).value;
+    if (translation != null &&
+        translation.placement == TranslationDailyPlacement.todo &&
+        translation.completedQuestionCount == 0 &&
+        (translation.assignmentId?.isNotEmpty ?? false)) {
+      enqueueSessionGeneration(assignmentId: translation.assignmentId!).ignore();
+    }
+
+    final production = ref.read(productionDailyProvider).value;
+    if (production != null &&
+        production.placement == ProductionDailyPlacement.todo &&
+        production.completedQuestionCount == 0 &&
+        (production.assignmentId?.isNotEmpty ?? false)) {
+      enqueueSessionGeneration(assignmentId: production.assignmentId!).ignore();
+    }
   }
 
   /// Kick off a stub-only status fetch for each mode if its per-day cache is
@@ -68,11 +109,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     ref.read(productionDailyProvider.notifier).clear();
     ref.read(productionDailyProvider.notifier).loadIfNeeded();
     _scheduleMidnightTimer();
+    _prefetchRequested = false;
+    _schedulePrefetch();
   }
 
   @override
   void dispose() {
     _midnightTimer?.cancel();
+    _prefetchTimer?.cancel();
     super.dispose();
   }
 

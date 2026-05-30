@@ -25,6 +25,11 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   TranslationEvaluationResult? _evaluationResult;
   String? _submittedAnswer;
 
+  /// Optimistic floor for the current card index. The evaluate callable returns
+  /// the new completed count before the Firestore listener observes it; this
+  /// keeps the page from briefly re-showing the just-answered question.
+  int _answeredCount = 0;
+
   void _focusAnswerInput() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -47,15 +52,15 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     ref.read(translationDailyProvider.notifier).clear();
   }
 
-  /// Re-fetch the hydrated session for the current `assignmentId`. Backend is
-  /// idempotent, so this does NOT regenerate questions.
+  /// Re-subscribe to the session stream (used by the error Retry button). The
+  /// enqueue is idempotent and only regenerates a previously-failed set.
   void _refreshSession() {
-    ref.invalidate(translationStartSessionProvider(widget.assignmentId));
+    ref.invalidate(translationSessionStreamProvider(widget.assignmentId));
   }
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(translationStartSessionProvider(widget.assignmentId));
+    final sessionAsync = ref.watch(translationSessionStreamProvider(widget.assignmentId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -94,9 +99,22 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
           data: (session) {
             final total = session.totalQuestionCount;
             final questions = session.questions;
-            final currentCardIndex = session.completedQuestionCount;
+            final isGenerating = session.generationStatus == 'generating';
+            // Use the optimistic floor so a freshly-answered card never reappears
+            // while the Firestore progress update is in flight.
+            final serverCompleted = session.completedQuestionCount;
+            final currentCardIndex = serverCompleted > _answeredCount ? serverCompleted : _answeredCount;
 
-            if (questions.isEmpty || currentCardIndex >= questions.length) {
+            // The whole wave has been answered.
+            if (total > 0 && currentCardIndex >= total) {
+              return _buildCompletedView(context);
+            }
+            // The next question hasn't streamed in yet: wait if generation is
+            // still running, otherwise fall back to the completed view.
+            if (currentCardIndex >= questions.length) {
+              if (isGenerating || questions.isEmpty) {
+                return _buildLoadingView(context);
+              }
               return _buildCompletedView(context);
             }
 
@@ -485,6 +503,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
       setState(() {
         _evaluationResult = result;
         _submittedAnswer = answer;
+        _answeredCount = result.completedQuestionCount;
         _isSubmitting = false;
       });
     } catch (e) {
@@ -515,6 +534,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
       setState(() {
         _evaluationResult = result;
         _submittedAnswer = '(skipped)';
+        _answeredCount = result.completedQuestionCount;
         _isSubmitting = false;
       });
     } catch (e) {
@@ -922,7 +942,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               context.go('/home');
               return;
             }
-            _refreshSession();
+            // The live stream already advanced `completedQuestionCount`; just
+            // clear the feedback UI to reveal the next (already-streamed) card.
             _resetState();
           },
           style: FilledButton.styleFrom(

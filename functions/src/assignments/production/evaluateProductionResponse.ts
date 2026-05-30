@@ -3,6 +3,7 @@ import * as admin from "firebase-admin";
 import {z} from "zod";
 import {generateStructured} from "../../ai/geminiClient";
 import {updateAssignmentProgress} from "../../utils/assignmentProgress";
+import {persistEvaluatedQuestion} from "../shared/persistEvaluatedQuestion";
 import {ProductionPrompts} from "./prompts";
 
 const db = admin.firestore();
@@ -130,12 +131,7 @@ export const evaluateProductionResponse = functions.https.onCall(
 
       const evaluation = await generateStructured(prompt, EvaluationSchema);
 
-      questions[questionIndex] = {
-        ...question,
-        studentAnswer: "(skipped)",
-        aiEvaluation: evaluation,
-      };
-      await questionSetRef.update({questions});
+      await persistEvaluatedQuestion(questionSetRef, questionIndex, "(skipped)", evaluation);
 
       const {assignmentCompleted} = await updateAssignmentProgress(
         assignmentRef,
@@ -174,13 +170,7 @@ export const evaluateProductionResponse = functions.https.onCall(
 
     const evaluation = await generateStructured(prompt, EvaluationSchema);
 
-    questions[questionIndex] = {
-      ...question,
-      studentAnswer,
-      aiEvaluation: evaluation,
-    };
-
-    await questionSetRef.update({questions});
+    await persistEvaluatedQuestion(questionSetRef, questionIndex, studentAnswer, evaluation);
 
     const {assignmentCompleted} = await updateAssignmentProgress(
       assignmentRef,

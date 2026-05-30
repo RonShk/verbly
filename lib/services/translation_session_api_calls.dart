@@ -12,8 +12,8 @@ enum TranslationDailyPlacement { todo, completed }
 ///
 /// Returned by the stub-only `getTranslationSession` callable. Safe to fetch
 /// from Home without triggering AI generation: counts will be 0/10 until the
-/// user taps Start/Continue, at which point `startTranslationSession` is
-/// called to hydrate the assignment.
+/// user taps Start/Continue, at which point `enqueueSessionGeneration` is
+/// called to start streaming questions.
 class TranslationDailyStatus {
   const TranslationDailyStatus({
     required this.placement,
@@ -114,8 +114,8 @@ class TranslationContinueReviewPreparation {
 ///
 /// Used when the user taps "Continue review" on a completed Translation row.
 /// Returns the new (or existing) todo's `assignmentId` so the client can
-/// navigate to the session page. AI generation itself happens lazily inside
-/// [startTranslationSession]; this call is fast and fire-and-forget safe.
+/// navigate to the session page. AI generation itself is started lazily via
+/// `enqueueSessionGeneration`; this call is fast and fire-and-forget safe.
 Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview() async {
   final callable = FirebaseFunctions.instance.httpsCallable('prepareTranslationContinueReview');
   final result = await callable.call({
@@ -132,24 +132,9 @@ Future<TranslationContinueReviewPreparation> prepareTranslationContinueReview() 
   return TranslationContinueReviewPreparation.fromJson(data);
 }
 
-/// Hydrate a Translation assignment and return the full session with
-/// questions. Idempotent: the backend only runs AI generation once per
-/// assignment; repeat calls return the existing questions.
-Future<TranslationSessionData> startTranslationSession({required String assignmentId}) async {
-  final callable = FirebaseFunctions.instance.httpsCallable('startTranslationSession');
-  final result = await callable.call({
-    'assignmentId': assignmentId,
-  });
-
-  final data = result.data;
-  if (data is! Map) {
-    throw Exception(
-      'startTranslationSession returned unexpected type: ${data.runtimeType}',
-    );
-  }
-
-  return TranslationSessionData.fromJson(data);
-}
+// Question generation is started via the shared [enqueueSessionGeneration] in
+// session_generation_api.dart; the session page then streams the question set
+// doc from Firestore as questions arrive.
 
 class TranslationEvaluationResult {
   const TranslationEvaluationResult({

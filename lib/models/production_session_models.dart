@@ -8,6 +8,7 @@ class ProductionSessionData {
     required this.completedQuestionCount,
     required this.cumulativeOffsetQuestionCount,
     required this.questions,
+    this.generationStatus = 'ready',
   });
 
   final String assignmentId;
@@ -16,6 +17,12 @@ class ProductionSessionData {
   final String teacher;
   final int totalQuestionCount;
   final int completedQuestionCount;
+
+  /// Streaming generation status of the underlying question set:
+  /// 'generating' | 'ready' | 'failed'. The session page uses this to decide
+  /// between showing a loader (more questions on the way) and the completed
+  /// view (genuinely out of questions).
+  final String generationStatus;
 
   /// Sum of [totalQuestionCount] across all already-completed Production
   /// assignments for today (0 for the first daily wave). Used by the session
@@ -39,7 +46,8 @@ class ProductionSessionData {
       totalQuestionCount: (json['totalQuestionCount'] as num?)?.toInt() ?? 0,
       completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,
       cumulativeOffsetQuestionCount: (json['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? 0,
-      questions: (json['questions'] as List?)?.map((e) => ProductionQuestion.fromJson(e)).toList() ??[]
+      questions: (json['questions'] as List?)?.map((e) => ProductionQuestion.fromJson(e)).toList() ?? [],
+      generationStatus: (json['generationStatus'] as String?) ?? 'ready',
     );
   }
 }
