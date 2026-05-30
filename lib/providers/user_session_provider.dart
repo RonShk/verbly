@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/auth/google_sign_in_method.dart';
 import '../services/auth/sign_in_method.dart';
+import '../services/auth/student_doc_service.dart';
 import '../services/auth/user_session.dart';
 
 /// Web client (server) OAuth client id for the Firebase project. Used as
@@ -61,4 +62,15 @@ final routerAuthRefreshProvider = Provider<Listenable>((ref) {
 /// is being restored, avoiding a flash of `/login` on cold start.
 final authStreamHasEmittedProvider = Provider<bool>((ref) {
   return ref.watch(firebaseUserProvider).hasValue;
+});
+
+/// Listens to auth state and creates a `students/{uid}` document the first
+/// time a student signs in. The existence check prevents repeat logins from
+/// overwriting the document. Must be watched at the app root to stay active.
+final ensureStudentDocProvider = Provider<void>((ref) {
+  ref.listen<AsyncValue<User?>>(firebaseUserProvider, (_, next) async {
+    final user = next.value;
+    if (user == null || user.isAnonymous) return;
+    await ensureStudentDocExists();
+  });
 });

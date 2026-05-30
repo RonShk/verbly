@@ -38,6 +38,7 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(ensureStudentDocProvider);
     final router = ref.watch(goRouterProvider);
     return MaterialApp.router(
       title: 'Vocab Forge',
