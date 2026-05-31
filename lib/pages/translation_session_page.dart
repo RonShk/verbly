@@ -848,61 +848,21 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     final status = eval?.explanationStatus ?? 'generating';
     final explanations = eval?.explanations ?? const <TranslationExplanation>[];
 
-    // Nothing to show once generation succeeded but produced no bullets.
     if (status == 'ready' && explanations.isEmpty) return const SizedBox.shrink();
 
     Widget body;
     if (status == 'failed') {
       body = _buildExplanationError(questionIndex);
     } else if (status == 'ready') {
+      body = _buildTranslationExplanationBullets(explanations);
+    } else if (explanations.isNotEmpty) {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: explanations.map((exp) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: exp == explanations.last ? 0 : 14,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.assignmentTypeAccent,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        exp.category.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.assignmentTypeAccent,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        exp.detail,
-                        style: const TextStyle(
-                          color: AppColors.navbarInactive,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+        children: [
+          _buildTranslationExplanationBullets(explanations),
+          const SizedBox(height: 12),
+          _buildExplanationTailLoading(),
+        ],
       );
     } else {
       body = _buildExplanationLoading();
@@ -931,6 +891,62 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                 color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
           ),
           child: body,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTranslationExplanationBullets(List<TranslationExplanation> explanations) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: explanations.map((exp) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: exp == explanations.last ? 0 : 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.assignmentTypeAccent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exp.category.toUpperCase(),
+                      style: const TextStyle(color: AppColors.assignmentTypeAccent, fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      exp.detail,
+                      style: const TextStyle(color: AppColors.navbarInactive, fontSize: 13, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildExplanationTailLoading() {
+    return const Row(
+      children: [
+        SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.assignmentTypeAccent),
+        ),
+        SizedBox(width: 10),
+        Text(
+          'Verbly is thinking…',
+          style: TextStyle(color: AppColors.navbarInactive, fontSize: 12, fontStyle: FontStyle.italic),
         ),
       ],
     );

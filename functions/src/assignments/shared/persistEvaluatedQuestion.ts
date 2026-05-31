@@ -48,3 +48,29 @@ export async function mergeQuestionEvaluation(questionSetRef: DocumentReference,
     tx.update(questionSetRef, {questions});
   });
 }
+
+/** One streamed teaching bullet ({ category, detail }) for phase-2 explanation generation. */
+export interface ExplanationBullet {
+  category: string;
+  detail: string;
+}
+
+/**
+ * Appends a single explanation bullet onto the question's `aiEvaluation.explanations`
+ * array while phase 2 is streaming. Keeps `explanationStatus: "generating"` until
+ * the stream finishes and the caller sets `ready`.
+ */
+export async function appendExplanationBullet(questionSetRef: DocumentReference, questionIndex: number, bullet: ExplanationBullet): Promise<void> {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(questionSetRef);
+    const questions = (snap.data()?.questions as Array<Record<string, unknown>> | undefined) ?? [];
+    if (!questions[questionIndex]) return;
+    const existing = (questions[questionIndex].aiEvaluation as Record<string, unknown> | undefined) ?? {};
+    const list = [...((existing.explanations as ExplanationBullet[] | undefined) ?? []), bullet];
+    questions[questionIndex] = {
+      ...questions[questionIndex],
+      aiEvaluation: {...existing, explanations: list, explanationStatus: "generating"},
+    };
+    tx.update(questionSetRef, {questions});
+  });
+}

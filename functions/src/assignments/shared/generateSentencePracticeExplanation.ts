@@ -2,9 +2,10 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import {ThinkingLevel} from "@google/genai";
 import {z} from "zod";
-import {generateStructured} from "../../ai/geminiClient";
-import {mergeQuestionEvaluation} from "./persistEvaluatedQuestion";
+import {generateStructuredStream} from "../../ai/geminiClient";
+import {appendExplanationBullet, mergeQuestionEvaluation} from "./persistEvaluatedQuestion";
 import {getModeConfig} from "./sessionModes";
+import {StreamingJsonArrayExtractor} from "./streamingJsonArray";
 
 const db = admin.firestore();
 
@@ -13,13 +14,14 @@ const SKIP_SENTINEL = "(skipped)";
 /**
  * Phase 2 of answer evaluation, shared by Translation and Production.
  *
- * Generates the teaching explanations for an already-graded question and merges
- * them into the question's `aiEvaluation` (setting `explanationStatus: "ready"`).
+ * Streams teaching explanation bullets into the question's `aiEvaluation` as
+ * Gemini completes each array element, then sets `explanationStatus: "ready"`.
  * The client fires this without awaiting after phase 1 returns, and listens to
- * the question set doc so the explanation section fills in live.
+ * the question set doc so bullets appear incrementally on the feedback screen.
  *
- * Idempotent: if explanations are already `ready`, returns immediately. On
- * failure, sets `explanationStatus: "failed"` so the client can offer a retry.
+ * Idempotent: if explanations are already `ready`, returns immediately. If a
+ * stream is already in progress (`generating`), returns without starting another.
+ * On failure, sets `explanationStatus: "failed"` so the client can offer retry.
  */
 export const generateSentencePracticeExplanation = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -68,9 +70,15 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
     throw new functions.https.HttpsError("failed-precondition", "Phase 1 evaluation has not run for this question yet.");
   }
 
-  // Idempotent: explanations already produced.
   if (evaluation.explanationStatus === "ready" && Array.isArray(evaluation.explanations) && evaluation.explanations.length > 0) {
     return {status: "ready"};
+  }
+
+  // Phase 1 leaves status "generating" with an empty list; only skip if a stream is
+  // already appending bullets (e.g. duplicate unawaited invocation).
+  const existingBullets = evaluation.explanations;
+  if (evaluation.explanationStatus === "generating" && Array.isArray(existingBullets) && existingBullets.length > 0) {
+    return {status: "generating"};
   }
 
   const studentAnswer = (question.studentAnswer as string | undefined) ?? "";
@@ -79,26 +87,34 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
   const sentence = question[config.sentenceField] as string;
   const vocabWordsUsed = (question.vocabWordsUsed as string[]) ?? [];
 
-  // Flip back to generating (covers a retry from a previous "failed").
-  await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "generating"});
+  await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "generating", explanations: []});
 
   const descriptions = config.evaluateDescriptions;
+  const ExplanationItemSchema = z.object({
+    category: z.string().describe(descriptions.explanation.category),
+    detail: z.string().describe(descriptions.explanation.detail),
+  });
   const ExplanationSchema = z.object({
-    explanations: z.array(
-      z.object({
-        category: z.string().describe(descriptions.explanation.category),
-        detail: z.string().describe(descriptions.explanation.detail),
-      })
-    ),
+    explanations: z.array(ExplanationItemSchema),
   });
 
   try {
     const prompt = config.buildExplainPrompt(sentence, vocabWordsUsed, studentAnswer, correctedVersion, score, useForeignCharacters);
-    const result = await generateStructured(prompt, ExplanationSchema, ThinkingLevel.MINIMAL);
-    await mergeQuestionEvaluation(questionSetRef, questionIndex, {
-      explanations: result.explanations,
-      explanationStatus: "ready",
-    });
+    const extractor = new StreamingJsonArrayExtractor("explanations");
+
+    await generateStructuredStream(prompt, ExplanationSchema, async (delta) => {
+      const completedElements = extractor.push(delta);
+      for (const rawElement of completedElements) {
+        try {
+          const item = ExplanationItemSchema.parse(JSON.parse(rawElement));
+          await appendExplanationBullet(questionSetRef, questionIndex, item);
+        } catch {
+          continue;
+        }
+      }
+    }, ThinkingLevel.MINIMAL);
+
+    await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "ready"});
     return {status: "ready"};
   } catch (err) {
     await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "failed"}).catch(() => undefined);
