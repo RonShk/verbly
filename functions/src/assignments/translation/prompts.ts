@@ -5,7 +5,7 @@
  */
 
 export const TranslationPrompts = {
-  /** Descriptions for the evaluation response schema (evaluateTranslationResponse). */
+  /** Descriptions for the evaluation response schema (shared evaluateSentencePracticeResponse / generateSentencePracticeExplanation). */
   descriptions: {
     evaluate: {
       score:
@@ -46,30 +46,68 @@ export const TranslationPrompts = {
     "- Forbidden phrases in explanations and feedback include variations of: required by the exercise, you had to mirror, specified vocabulary, not what was asked for as vocabulary.\n" +
     "- explanations[].detail must give a reusable insight—not that an English word was wrong because it was not the lesson's favorite.",
 
-  /** High-level instruction for evaluation (no dynamic context). */
-  evaluateHighLevel:
-    "You are a Spanish teacher evaluating a student's translation from Spanish to English. " +
+  /** High-level instruction for phase-1 grading (score + corrected only). */
+  evaluatePhase1HighLevel:
+    "You are a Spanish teacher grading a student's translation from Spanish to English. " +
     "The student was shown a Spanish sentence and wrote an English translation. " +
     "Prioritize faithful meaning and natural English. " +
     "Grammar and word choice matter when they change meaning or sound clearly wrong; reasonable paraphrases and close synonyms are acceptable when they match the Spanish. " +
+    "Return ONLY the score, the corrected English translation, and the highlighted segments. " +
+    "Do NOT write any teaching explanations or feedback prose. " +
     "Respond with the JSON object described by the schema.",
 
-  /** Builds the full evaluate prompt with context. */
-  buildEvaluatePrompt(
+  /** Builds a vocab context line shared by the evaluate prompts. */
+  evaluateVocabLine(vocabWordsUsed: string[]): string {
+    return vocabWordsUsed.length > 0 ? `Spanish expressions highlighted for this sentence (use them to judge intent and nuance; English equivalents may vary): ${vocabWordsUsed.join(", ")}` : "No separate vocab list for this item.";
+  },
+
+  /** Phase 1 (normal answer): score + corrected translation + segments. */
+  buildEvaluatePhase1Prompt(
     sentenceInLearningLanguage: string,
     vocabWordsUsed: string[],
     studentAnswer: string
   ): string {
-    const vocabLine =
-      vocabWordsUsed.length > 0
-        ? `Spanish expressions highlighted for this sentence (use them to judge intent and nuance; English equivalents may vary): ${vocabWordsUsed.join(", ")}`
-        : "No separate vocab list for this item.";
+    return (
+      `${TranslationPrompts.evaluatePhase1HighLevel}\n\n` +
+      `The Spanish sentence the student was asked to translate:\n"${sentenceInLearningLanguage}"\n\n` +
+      `${TranslationPrompts.evaluateVocabLine(vocabWordsUsed)}\n\n` +
+      `The student's English translation: "${studentAnswer}"`
+    );
+  },
+
+  /** Phase 1 (skipped): corrected translation only, no score. */
+  buildEvaluateSkipPhase1Prompt(
+    sentenceInLearningLanguage: string,
+    vocabWordsUsed: string[]
+  ): string {
+    return (
+      "You are a Spanish teacher. The student skipped this question, so do NOT produce a score. " +
+      "Provide the correct, natural English translation of the Spanish sentence in correctedVersion. " +
+      "Respond with the JSON object described by the schema.\n\n" +
+      `The Spanish sentence:\n"${sentenceInLearningLanguage}"\n\n` +
+      `${TranslationPrompts.evaluateVocabLine(vocabWordsUsed)}`
+    );
+  },
+
+  /** Phase 2: teaching explanations only, using the phase-1 corrected version. */
+  buildExplainPrompt(
+    sentenceInLearningLanguage: string,
+    vocabWordsUsed: string[],
+    studentAnswer: string,
+    correctedVersion: string,
+    score: number | null
+  ): string {
+    const isSkipped = score === null;
+    const contextLine = isSkipped ? "The student skipped this question (no answer given)." : `The student's English translation: "${studentAnswer}"\nYou already graded this ${score}/100.`;
 
     return (
-      `${TranslationPrompts.evaluateHighLevel}\n\n` +
-      `The Spanish sentence the student was asked to translate:\n"${sentenceInLearningLanguage}"\n\n` +
-      `${vocabLine}\n\n` +
-      `The student's English translation: "${studentAnswer}"` +
+      "You are a Spanish teacher writing short teaching explanations for a student's translation from Spanish to English.\n\n" +
+      `The Spanish sentence:\n"${sentenceInLearningLanguage}"\n\n` +
+      `${TranslationPrompts.evaluateVocabLine(vocabWordsUsed)}\n\n` +
+      `${contextLine}\n` +
+      `The correct English translation: "${correctedVersion}"\n\n` +
+      "Produce a short list of teaching explanations (a few bullets) that help the student learn from this item. " +
+      "Write ALL explanations in English." +
       TranslationPrompts.evaluatePedagogyBlock
     );
   },

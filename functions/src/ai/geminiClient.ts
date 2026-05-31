@@ -23,30 +23,30 @@ function getClient(): GoogleGenAI {
 
 export const GEMINI_MODEL = "gemini-3-flash-preview";
 
-const BASE_CONFIG: GenerateContentConfig = {
-  thinkingConfig: {
-    thinkingLevel: ThinkingLevel.MEDIUM,
-  },
-};
-
 /**
  * Sends a prompt to Gemini with a structured JSON response constraint
  * derived from a Zod schema. Parses and validates the response.
  *
  * Callers only need to provide a prompt and a Zod schema -- the JSON
  * Schema for Gemini is generated automatically via z.toJSONSchema().
+ *
+ * `thinkingLevel` defaults to MEDIUM. Latency-sensitive callers (e.g. answer
+ * evaluation) can pass MINIMAL: grading and short teaching bullets do not need
+ * deep reasoning, and lower thinking means the response arrives much sooner.
  */
-export async function generateStructured<T>(prompt: string, schema: z.ZodType<T>): Promise<T> {
+export async function generateStructured<T>(prompt: string, schema: z.ZodType<T>, thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM): Promise<T> {
   const ai = getClient();
   const jsonSchema = z.toJSONSchema(schema);
 
+  const config: GenerateContentConfig = {
+    thinkingConfig: {thinkingLevel},
+    responseMimeType: "application/json",
+    responseJsonSchema: jsonSchema,
+  };
+
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
-    config: {
-      ...BASE_CONFIG,
-      responseMimeType: "application/json",
-      responseJsonSchema: jsonSchema,
-    },
+    config,
     contents: [{role: "user", parts: [{text: prompt}]}],
   });
 

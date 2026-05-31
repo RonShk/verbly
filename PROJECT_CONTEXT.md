@@ -56,7 +56,7 @@ Students see three cards on their home screen, always in this order: **VOCAB →
 
 **What it feels like:** The student sees a sentence in their **known language** (English in the MVP) and types a translation in the **learning language** (Spanish in the MVP). Think “output” practice — they must produce the target language.
 
-**What powers it:** A daily **assignment** row in `user_todo_assignments` with `type: "PRODUCTION"`. On first real session start, Cloud Functions call **Gemini** to generate a set of prompts stored in **`production_question_sets`**. Each answer is submitted to **`evaluateProductionResponse`**, which scores the answer (0–100), returns corrected text with highlights, and advances assignment progress. When the day’s set is finished, the assignment moves to **`user_completed_assignments`**.
+**What powers it:** A daily **assignment** row in `user_todo_assignments` with `type: "PRODUCTION"`. On first real session start, Cloud Functions call **Gemini** to generate a set of prompts stored in **`production_question_sets`**. Each answer is graded by the shared two-phase pipeline: **`evaluateSentencePracticeResponse`** scores the answer (0–100) and returns corrected text with highlights (advancing assignment progress), then **`generateSentencePracticeExplanation`** fills in the teaching explanations in the background. When the day’s set is finished, the assignment moves to **`user_completed_assignments`**.
 
 **Why tutors care:** Production shows whether the student can **use** vocabulary in context, not just recognize it. Tutors will eventually want to see scores and weak patterns; that data lives on assignment / evaluation paths written by student functions today.
 
@@ -64,7 +64,7 @@ Students see three cards on their home screen, always in this order: **VOCAB →
 
 **What it feels like:** The opposite direction from Production. The student sees a sentence in the **learning language** and types the meaning in the **known language**.
 
-**What powers it:** Same pattern as Production: `user_todo_assignments` with `type: "TRANSLATION"`, questions in **`translation_question_sets`**, grading via **`evaluateTranslationResponse`** and Gemini.
+**What powers it:** Same pattern as Production: `user_todo_assignments` with `type: "TRANSLATION"`, questions in **`translation_question_sets`**, grading via the shared **`evaluateSentencePracticeResponse`** / **`generateSentencePracticeExplanation`** pipeline and Gemini.
 
 **Why tutors care:** Translation stresses **comprehension** and nuance. Together with Production, it rounds out active vs receptive skills while VOCAB builds the underlying word memory.
 

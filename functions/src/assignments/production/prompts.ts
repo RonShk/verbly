@@ -4,7 +4,7 @@
  */
 
 export const ProductionPrompts = {
-  /** Descriptions for the evaluation response schema (evaluateProductionResponse). */
+  /** Descriptions for the evaluation response schema (shared evaluateSentencePracticeResponse / generateSentencePracticeExplanation). */
   descriptions: {
     evaluate: {
       score:
@@ -45,41 +45,84 @@ export const ProductionPrompts = {
     "- Forbidden phrases in explanations and feedback include variations of: required by the exercise, you had to use, specified vocabulary, not what was asked for as vocabulary.\n" +
     "- explanations[].detail must give a reusable insight (rule, contrast, collocation)—not word-matching criticism.",
 
-  /** High-level instruction for evaluation (no dynamic context). */
-  evaluateHighLevel:
-    "You are a Spanish language teacher evaluating a student's translation from English to Spanish. " +
+  /** High-level instruction for phase-1 grading (score + corrected only). */
+  evaluatePhase1HighLevel:
+    "You are a Spanish language teacher grading a student's translation from English to Spanish. " +
     "Prioritize whether their Spanish conveys the English meaning accurately and sounds natural. " +
     "Then consider grammar (verb conjugation, gender agreement, word order). " +
-    "Practice-target Spanish expressions help guide feedback when relevant; they are not an excuse to reject good Spanish that differs slightly but stays idiomatic and faithful. " +
+    "Practice-target Spanish expressions help guide grading when relevant; they are not an excuse to reject good Spanish that differs slightly but stays idiomatic and faithful. " +
+    "Return ONLY the score, the corrected Spanish translation, and the highlighted segments. " +
+    "Do NOT write any teaching explanations or feedback prose. " +
     "Respond with the JSON object described by the schema.",
 
-  /** Builds the full evaluate prompt with context. */
-  buildEvaluatePrompt(
+  /** Diacritics instruction appended when the student cannot type accents. */
+  foreignCharInstruction(useForeignCharacters: boolean): string {
+    return useForeignCharacters ? "" : "\n\nIMPORTANT: The student does NOT use foreign characters / diacritics on their keyboard. " +
+      "Do NOT penalize missing or incorrect Spanish diacritics (accents/ñ/ü) if the underlying letters/words are otherwise correct. " +
+      "For example, treat 'como' vs 'cómo', 'senor' vs 'señor', and 'anio' vs 'año' as acceptable and do NOT mark them as wrong. " +
+      "When producing correctedVersionSegments, do NOT highlight accent-only differences as 'wrong'/'correct' — mark those segments as 'none'. " +
+      "Also, when useForeignCharacters is false, output Spanish WITHOUT diacritics in correctedVersion and in every correctedVersionSegments.text. " +
+      "That means: no accented vowels (áéíóú), no ñ, no ü.";
+  },
+
+  /** Builds a vocab context line shared by the evaluate prompts. */
+  evaluateVocabLine(vocabWordsUsed: string[]): string {
+    return vocabWordsUsed.length > 0 ? `Spanish expressions emphasized for this exercise (interpret intent; strong alternatives may also be acceptable): ${vocabWordsUsed.join(", ")}` : "No separate vocab list for this item.";
+  },
+
+  /** Phase 1 (normal answer): score + corrected translation + segments. */
+  buildEvaluatePhase1Prompt(
     sentenceInNativeLanguage: string,
     vocabWordsUsed: string[],
     studentAnswer: string,
     useForeignCharacters = true
   ): string {
-    const foreignCharInstruction = useForeignCharacters
-      ? ""
-      : "\n\nIMPORTANT: The student does NOT use foreign characters / diacritics on their keyboard. " +
-          "Do NOT penalize missing or incorrect Spanish diacritics (accents/ñ/ü) if the underlying letters/words are otherwise correct. " +
-          "For example, treat 'como' vs 'cómo', 'senor' vs 'señor', and 'anio' vs 'año' as acceptable and do NOT mark them as wrong. " +
-          "When producing correctedVersionSegments, do NOT highlight accent-only differences as 'wrong'/'correct' — mark those segments as 'none'. " +
-          "Also, when useForeignCharacters is false, output Spanish WITHOUT diacritics in correctedVersion and in every correctedVersionSegments.text. " +
-          "That means: no accented vowels (áéíóú), no ñ, no ü.";
+    return (
+      `${ProductionPrompts.evaluatePhase1HighLevel}\n\n` +
+      `The student was asked to translate this English sentence into Spanish:\n"${sentenceInNativeLanguage}"\n\n` +
+      `${ProductionPrompts.evaluateVocabLine(vocabWordsUsed)}\n\n` +
+      `The student wrote: "${studentAnswer}"` +
+      ProductionPrompts.foreignCharInstruction(useForeignCharacters)
+    );
+  },
 
-    const vocabLine =
-      vocabWordsUsed.length > 0
-        ? `Spanish expressions emphasized for this exercise (interpret intent; strong alternatives may also be acceptable): ${vocabWordsUsed.join(", ")}`
-        : "No separate vocab list for this item.";
+  /** Phase 1 (skipped): corrected translation only, no score. */
+  buildEvaluateSkipPhase1Prompt(
+    sentenceInNativeLanguage: string,
+    vocabWordsUsed: string[],
+    useForeignCharacters = true
+  ): string {
+    return (
+      "You are a Spanish language teacher. The student skipped this question, so do NOT produce a score. " +
+      "Provide the correct, natural Spanish translation of the English sentence in correctedVersion. " +
+      "Respond with the JSON object described by the schema.\n\n" +
+      `The English sentence:\n"${sentenceInNativeLanguage}"\n\n` +
+      `${ProductionPrompts.evaluateVocabLine(vocabWordsUsed)}` +
+      ProductionPrompts.foreignCharInstruction(useForeignCharacters)
+    );
+  },
+
+  /** Phase 2: teaching explanations only, using the phase-1 corrected version. */
+  buildExplainPrompt(
+    sentenceInNativeLanguage: string,
+    vocabWordsUsed: string[],
+    studentAnswer: string,
+    correctedVersion: string,
+    score: number | null,
+    useForeignCharacters = true
+  ): string {
+    const isSkipped = score === null;
+    const contextLine = isSkipped ? "The student skipped this question (no answer given)." : `The student wrote: "${studentAnswer}"\nYou already graded this ${score}/100.`;
 
     return (
-      `${ProductionPrompts.evaluateHighLevel}\n\n` +
-      `The student was asked to translate this English sentence into Spanish:\n"${sentenceInNativeLanguage}"\n\n` +
-      `${vocabLine}\n\n` +
-      `The student wrote: "${studentAnswer}"` +
-      foreignCharInstruction +
+      "You are a Spanish language teacher writing short teaching explanations for a student's translation from English to Spanish.\n\n" +
+      `The English sentence:\n"${sentenceInNativeLanguage}"\n\n` +
+      `${ProductionPrompts.evaluateVocabLine(vocabWordsUsed)}\n\n` +
+      `${contextLine}\n` +
+      `The correct Spanish translation: "${correctedVersion}"\n\n` +
+      "Produce a short list of teaching explanations (a few bullets) that help the student learn from this item. " +
+      "Write ALL explanations in English." +
+      ProductionPrompts.foreignCharInstruction(useForeignCharacters) +
       ProductionPrompts.evaluatePedagogyBlock
     );
   },
