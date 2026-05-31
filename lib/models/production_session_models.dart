@@ -1,3 +1,5 @@
+import '../services/sentence_practice_evaluation_api.dart';
+
 class ProductionSessionData {
   const ProductionSessionData({
     required this.assignmentId,
@@ -91,13 +93,20 @@ class ProductionAiEvaluation {
     required this.score,
     required this.feedback,
     required this.correctedVersion,
+    this.correctedVersionSegments,
     required this.explanations,
+    this.explanationStatus = 'ready',
   });
 
   final int score;
   final String feedback;
   final String correctedVersion;
+  final List<CorrectedSegment>? correctedVersionSegments;
   final List<ProductionExplanation> explanations;
+
+  /// Phase-2 explanation generation status: 'generating' | 'ready' | 'failed'.
+  /// Defaults to 'ready' so legacy docs without the field render normally.
+  final String explanationStatus;
 
   factory ProductionAiEvaluation.fromJson(dynamic json) {
     if (json is! Map) {
@@ -110,7 +119,9 @@ class ProductionAiEvaluation {
       score: (json['score'] as num?)?.toInt() ?? 0,
       feedback: (json['feedback'] as String?) ?? '',
       correctedVersion: (json['correctedVersion'] as String?) ?? '',
+      correctedVersionSegments: (json['correctedVersionSegments'] as List?)?.map((e) => CorrectedSegment.fromJson(e)).toList(),
       explanations: (json['explanations'] as List?) ?.map((e) => ProductionExplanation.fromJson(e)).toList() ?? [],
+      explanationStatus: (json['explanationStatus'] as String?) ?? 'ready',
     );
   }
 }

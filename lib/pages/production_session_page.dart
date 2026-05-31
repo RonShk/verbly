@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../constants/foreign_characters.dart';
 import '../models/production_session_models.dart';
 import '../providers/production_session_provider.dart';
-import '../services/production_session_api_calls.dart';
+import '../services/sentence_practice_evaluation_api.dart';
 import '../theme/app_colors.dart';
 
 class ProductionSessionPage extends ConsumerStatefulWidget {
@@ -24,8 +25,13 @@ class _ProductionSessionPageState
   final _answerController = TextEditingController();
   final _answerFocusNode = FocusNode();
   bool _isSubmitting = false;
-  ProductionEvaluationResult? _evaluationResult;
+  SentencePracticePhase1Result? _phase1Result;
   String? _submittedAnswer;
+
+  /// Index of the question currently shown in the feedback view. Set on submit
+  /// so the feedback view (and live explanation) reads the answered question,
+  /// not the next card the optimistic counter has already advanced to.
+  int? _answeredQuestionIndex;
 
   /// Optimistic floor for the current card index. The evaluate callable returns
   /// the new completed count before the Firestore listener observes it; this
@@ -122,13 +128,15 @@ class _ProductionSessionPageState
 
             final q = questions[currentCardIndex];
 
-            if (_evaluationResult != null) {
+            if (_phase1Result != null) {
+              final answeredIndex = _answeredQuestionIndex ?? currentCardIndex;
+              final answeredQ = answeredIndex < questions.length ? questions[answeredIndex] : q;
               return _buildFeedbackView(
                 context,
-                q,
-                _evaluationResult!,
+                answeredQ,
+                _phase1Result!,
                 _submittedAnswer ?? '',
-                currentCardIndex,
+                answeredIndex,
                 total,
               );
             }
@@ -487,10 +495,21 @@ class _ProductionSessionPageState
     final answer = _answerController.text.trim();
     if (answer.isEmpty) return;
 
+    await _evaluate(questionIndex, answer);
+  }
+
+  Future<void> _skipQuestion(int questionIndex) async {
+    await _evaluate(questionIndex, '(skipped)');
+  }
+
+  /// Phase 1: grade the answer and move to the feedback view as soon as the
+  /// score + corrected translation are back. Phase 2 (explanations) is fired
+  /// without awaiting; results stream onto the question via Firestore.
+  Future<void> _evaluate(int questionIndex, String answer) async {
     setState(() => _isSubmitting = true);
 
     try {
-      final result = await evaluateProductionResponse(
+      final result = await evaluateSentencePracticeResponse(
         assignmentId: widget.assignmentId,
         questionIndex: questionIndex,
         studentAnswer: answer,
@@ -500,43 +519,18 @@ class _ProductionSessionPageState
       if (!mounted) return;
 
       setState(() {
-        _evaluationResult = result;
+        _phase1Result = result;
         _submittedAnswer = answer;
+        _answeredQuestionIndex = questionIndex;
         _answeredCount = result.completedQuestionCount;
         _isSubmitting = false;
       });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-    }
-  }
-
-  Future<void> _skipQuestion(int questionIndex) async {
-    setState(() => _isSubmitting = true);
-
-    try {
-      final result = await evaluateProductionResponse(
+      unawaited(generateSentencePracticeExplanation(
         assignmentId: widget.assignmentId,
         questionIndex: questionIndex,
-        studentAnswer: '(skipped)',
         useForeignCharacters: kUseForeignCharacters,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _evaluationResult = result;
-        _submittedAnswer = '(skipped)';
-        _answeredCount = result.completedQuestionCount;
-        _isSubmitting = false;
-      });
+      ));
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
@@ -554,8 +548,9 @@ class _ProductionSessionPageState
     setState(() {
       _answerController.clear();
       _isSubmitting = false;
-      _evaluationResult = null;
+      _phase1Result = null;
       _submittedAnswer = null;
+      _answeredQuestionIndex = null;
     });
     _focusAnswerInput();
   }
@@ -567,9 +562,9 @@ class _ProductionSessionPageState
   Widget _buildFeedbackView(
     BuildContext context,
     ProductionQuestion q,
-    ProductionEvaluationResult result,
+    SentencePracticePhase1Result result,
     String submittedAnswer,
-    int currentCardIndex,
+    int answeredQuestionIndex,
     int total,
   ) {
     final isSkipped = result.skipped;
@@ -594,15 +589,13 @@ class _ProductionSessionPageState
                 ],
                 _buildCorrectedSection(result),
                 const SizedBox(height: 20),
-                if (result.explanations.isNotEmpty) ...[
-                  _buildExplanationSection(result.explanations),
-                  const SizedBox(height: 24),
-                ],
+                _buildExplanationSection(q.aiEvaluation, answeredQuestionIndex),
+                const SizedBox(height: 24),
               ],
             ),
           ),
         ),
-        _buildFeedbackBottomBar(context, result, currentCardIndex),
+        _buildFeedbackBottomBar(context, result, answeredQuestionIndex),
       ],
     );
   }
@@ -759,7 +752,7 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildCorrectedSection(ProductionEvaluationResult result) {
+  Widget _buildCorrectedSection(SentencePracticePhase1Result result) {
     final segments = result.correctedVersionSegments;
     final hasHighlights = !result.skipped &&
         segments != null &&
@@ -844,7 +837,73 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildExplanationSection(List<ProductionExplanation> explanations) {
+  /// Explanation section. Phase 2 generates the bullets after phase 1 returns;
+  /// `eval` arrives live via the Firestore session stream, so this rebuilds
+  /// from "Verbly is thinking…" to the bullets without the user leaving.
+  Widget _buildExplanationSection(ProductionAiEvaluation? eval, int questionIndex) {
+    final status = eval?.explanationStatus ?? 'generating';
+    final explanations = eval?.explanations ?? const <ProductionExplanation>[];
+
+    // Nothing to show once generation succeeded but produced no bullets.
+    if (status == 'ready' && explanations.isEmpty) return const SizedBox.shrink();
+
+    Widget body;
+    if (status == 'failed') {
+      body = _buildExplanationError(questionIndex);
+    } else if (status == 'ready') {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: explanations.map((exp) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: exp == explanations.last ? 0 : 14,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.assignmentTypeAccent,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exp.category.toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.assignmentTypeAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        exp.detail,
+                        style: const TextStyle(
+                          color: AppColors.navbarInactive,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    } else {
+      body = _buildExplanationLoading();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -867,63 +926,75 @@ class _ProductionSessionPageState
             border: Border.all(
                 color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: explanations.map((exp) {
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: exp == explanations.last ? 0 : 14,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.assignmentTypeAccent,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            exp.category.toUpperCase(),
-                            style: const TextStyle(
-                              color: AppColors.assignmentTypeAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            exp.detail,
-                            style: const TextStyle(
-                              color: AppColors.navbarInactive,
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
+          child: body,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExplanationLoading() {
+    return const Row(
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.assignmentTypeAccent,
+          ),
+        ),
+        SizedBox(width: 12),
+        Text(
+          'Verbly is thinking…',
+          style: TextStyle(
+            color: AppColors.navbarInactive,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
           ),
         ),
       ],
     );
   }
 
+  Widget _buildExplanationError(int questionIndex) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Expanded(
+          child: Text(
+            "Couldn't load the explanation.",
+            style: TextStyle(
+              color: AppColors.navbarInactive,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: () => _retryExplanation(questionIndex),
+          child: const Text(
+            'Retry',
+            style: TextStyle(
+              color: AppColors.blueHighlighted,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _retryExplanation(int questionIndex) {
+    unawaited(generateSentencePracticeExplanation(
+      assignmentId: widget.assignmentId,
+      questionIndex: questionIndex,
+      useForeignCharacters: kUseForeignCharacters,
+    ));
+  }
+
   Widget _buildFeedbackBottomBar(
     BuildContext context,
-    ProductionEvaluationResult result,
+    SentencePracticePhase1Result result,
     int currentCardIndex,
   ) {
     return Padding(

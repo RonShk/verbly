@@ -5,6 +5,18 @@ import {ProductionPrompts} from "../production/prompts";
 export type SessionType = "TRANSLATION" | "PRODUCTION";
 
 /**
+ * Schema field descriptions used when grading an answer. Shared shape between
+ * Translation and Production; the wording differs per mode.
+ */
+export interface EvaluateDescriptions {
+  score: string;
+  correctedVersion: string;
+  correctedVersionSegments: string;
+  segment: {text: string; highlight: string};
+  explanation: {category: string; detail: string};
+}
+
+/**
  * Everything the shared generation pipeline needs to know about a sentence
  * practice mode. Translation and Production are otherwise identical: same
  * word selection, same streaming generation, same persistence shape. The only
@@ -28,6 +40,14 @@ export interface SessionModeConfig {
   vocabWordsUsedDescription: string;
   /** Builds the generation prompt for this mode. */
   buildGeneratePrompt: (wordPairs: string, count: number) => string;
+  /** Schema field descriptions used for grading (phase 1) and explaining (phase 2). */
+  evaluateDescriptions: EvaluateDescriptions;
+  /** Phase 1 prompt for a normal answer: score + corrected version + segments. */
+  buildEvaluatePhase1Prompt: (sentence: string, vocabWordsUsed: string[], studentAnswer: string, useForeignCharacters: boolean) => string;
+  /** Phase 1 prompt for a skipped question: corrected version only, no score. */
+  buildEvaluateSkipPhase1Prompt: (sentence: string, vocabWordsUsed: string[], useForeignCharacters: boolean) => string;
+  /** Phase 2 prompt: teaching explanations only, given the phase-1 corrected version. */
+  buildExplainPrompt: (sentence: string, vocabWordsUsed: string[], studentAnswer: string, correctedVersion: string, score: number | null, useForeignCharacters: boolean) => string;
 }
 
 const QUESTION_COUNT = 10;
@@ -42,6 +62,10 @@ export const TRANSLATION_MODE: SessionModeConfig = {
   sentenceDescription: TranslationPrompts.descriptions.generate.sentenceInLearningLanguage,
   vocabWordsUsedDescription: TranslationPrompts.descriptions.generate.vocabWordsUsed,
   buildGeneratePrompt: (wordPairs, count) => TranslationPrompts.buildGeneratePrompt(wordPairs, count),
+  evaluateDescriptions: TranslationPrompts.descriptions.evaluate,
+  buildEvaluatePhase1Prompt: (sentence, vocabWordsUsed, studentAnswer) => TranslationPrompts.buildEvaluatePhase1Prompt(sentence, vocabWordsUsed, studentAnswer),
+  buildEvaluateSkipPhase1Prompt: (sentence, vocabWordsUsed) => TranslationPrompts.buildEvaluateSkipPhase1Prompt(sentence, vocabWordsUsed),
+  buildExplainPrompt: (sentence, vocabWordsUsed, studentAnswer, correctedVersion, score) => TranslationPrompts.buildExplainPrompt(sentence, vocabWordsUsed, studentAnswer, correctedVersion, score),
 };
 
 export const PRODUCTION_MODE: SessionModeConfig = {
@@ -54,6 +78,10 @@ export const PRODUCTION_MODE: SessionModeConfig = {
   sentenceDescription: ProductionPrompts.descriptions.generate.sentenceInNativeLanguage,
   vocabWordsUsedDescription: ProductionPrompts.descriptions.generate.vocabWordsUsed,
   buildGeneratePrompt: (wordPairs, count) => ProductionPrompts.buildGeneratePrompt(wordPairs, count),
+  evaluateDescriptions: ProductionPrompts.descriptions.evaluate,
+  buildEvaluatePhase1Prompt: (sentence, vocabWordsUsed, studentAnswer, useForeignCharacters) => ProductionPrompts.buildEvaluatePhase1Prompt(sentence, vocabWordsUsed, studentAnswer, useForeignCharacters),
+  buildEvaluateSkipPhase1Prompt: (sentence, vocabWordsUsed, useForeignCharacters) => ProductionPrompts.buildEvaluateSkipPhase1Prompt(sentence, vocabWordsUsed, useForeignCharacters),
+  buildExplainPrompt: (sentence, vocabWordsUsed, studentAnswer, correctedVersion, score, useForeignCharacters) => ProductionPrompts.buildExplainPrompt(sentence, vocabWordsUsed, studentAnswer, correctedVersion, score, useForeignCharacters),
 };
 
 /** Resolves the mode config for an assignment `type`, or throws if unsupported. */

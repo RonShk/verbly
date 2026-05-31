@@ -1,7 +1,36 @@
-- **Branching:** Never commit to `main`; if on `main`, create and switch to `feature/<short-name>` before making changes; if already on a feature branch, stay on it.
-
 - **Formatting:** Never split simple assignments, ternaries, boolean expressions, or short statements across multiple lines. These must always remain on a single line if they fit within a normal line length.
 
 - **Line breaks:** Do not introduce line breaks for readability in short expressions. Multi-line formatting is only allowed for genuinely long or complex logic.
 
 - **Output rule:** If a statement can fit on one line, it must be on one line.
+
+# Git Workflow Rules
+
+When creating a branch, always follow this naming convention:
+
+Features:
+feature/<issue-number>-<short-kebab-case-description>
+
+Bugs:
+bug/<issue-number>-<short-kebab-case-description>
+
+Enhancements:
+enhancement/<issue-number>-<short-kebab-case-description>
+
+Examples:
+
+feature/42-language-streaks
+feature/18-google-auth
+
+bug/73-login-redirect-loop
+bug/15-password-reset-failure
+
+enhancement/91-dashboard-performance
+enhancement/24-improve-onboarding
+
+Rules:
+- Always use lowercase.
+- Always use kebab-case.
+- Never use spaces.
+- Always include the GitHub issue number.
+- Never create branches directly from a description without an issue number.

@@ -26,3 +26,25 @@ export async function persistEvaluatedQuestion(questionSetRef: DocumentReference
     tx.update(questionSetRef, {questions});
   });
 }
+
+/**
+ * Transactionally merges `patch` into a single question's existing
+ * `aiEvaluation` map without clobbering the rest of it (or other questions).
+ *
+ * Used by phase-2 explanation generation: phase 1 has already written
+ * `aiEvaluation` (score, corrected version, `explanationStatus: "generating"`),
+ * and this merges in `explanations` + `explanationStatus` once they are ready.
+ */
+export async function mergeQuestionEvaluation(questionSetRef: DocumentReference, questionIndex: number, patch: Record<string, unknown>): Promise<void> {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(questionSetRef);
+    const questions = (snap.data()?.questions as Array<Record<string, unknown>> | undefined) ?? [];
+    if (!questions[questionIndex]) return;
+    const existing = (questions[questionIndex].aiEvaluation as Record<string, unknown> | undefined) ?? {};
+    questions[questionIndex] = {
+      ...questions[questionIndex],
+      aiEvaluation: {...existing, ...patch},
+    };
+    tx.update(questionSetRef, {questions});
+  });
+}

@@ -21,7 +21,31 @@ streamGenerateSessionQuestions    ← Gemini streaming, appends questions to Fir
 Flutter StreamProvider            ← listens to question set doc, shows Q1 as it arrives
 ```
 
-**Grading** is separate: `evaluateTranslationResponse` / `evaluateProductionResponse` run one blocking Gemini call per submitted answer.
+**Grading** is separate and runs in two phases, shared by both modes:
+
+```
+Submit answer
+       │
+       ▼
+evaluateSentencePracticeResponse      ← phase 1 (blocking, MINIMAL thinking)
+       │  score (omitted for skips) + corrected translation + segments
+       │  persists aiEvaluation { explanationStatus: "generating" }
+       ▼
+client shows feedback screen immediately, then fires (unawaited):
+       │
+       ▼
+generateSentencePracticeExplanation   ← phase 2 (background, MINIMAL thinking)
+       │  teaching explanations only
+       ▼
+merges aiEvaluation { explanations, explanationStatus: "ready" }
+       │
+       ▼
+Flutter session stream                ← explanation section fills in live
+```
+
+Both callables infer the mode (Translation/Production) from the assignment's
+`type` and grade via the shared `evaluateDescriptions` / prompt builders on the
+mode config. Skips never request a score.
 
 ## File map
 
@@ -29,12 +53,14 @@ Flutter StreamProvider            ← listens to question set doc, shows Q1 as i
 
 | File | Role |
 |------|------|
-| `sessionModes.ts` | Mode config: collection name, sentence field, prompts. `TRANSLATION_MODE` / `PRODUCTION_MODE`. |
+| `sessionModes.ts` | Mode config: collection name, sentence field, generation + evaluation prompts/descriptions. `TRANSLATION_MODE` / `PRODUCTION_MODE`. |
 | `enqueueSessionGeneration.ts` | Callable: create or reuse question set, return `questionSetId` immediately. |
 | `onQuestionSetCreated.ts` | Firestore triggers that start generation when a `generating` doc is created. |
 | `generateSessionQuestions.ts` | Worker: vocab selection → Gemini stream → append each question to Firestore. |
 | `streamingJsonArray.ts` | Parses complete question objects from partial structured JSON stream. |
-| `persistEvaluatedQuestion.ts` | Transactional single-question update during grading (safe while generation still appends). |
+| `persistEvaluatedQuestion.ts` | Transactional single-question writes during grading: `persistEvaluatedQuestion` (phase 1) and `mergeQuestionEvaluation` (phase 2 merge). Safe while generation still appends. |
+| `evaluateSentencePracticeResponse.ts` | Phase 1 grading callable: score + corrected translation. |
+| `generateSentencePracticeExplanation.ts` | Phase 2 callable: teaching explanations, merged onto the question. |
 
 ### Per mode (`translation/`, `production/`)
 
@@ -42,8 +68,9 @@ Flutter StreamProvider            ← listens to question set doc, shows Q1 as i
 |------|------|
 | `get*Session.ts` | Home stub lookup only. Creates empty todo if needed. **No AI.** |
 | `prepare*ContinueReview.ts` | Creates wave-2 todo after 10/10. **No AI.** |
-| `evaluate*Response.ts` | Grades one answer via `generateStructured`. |
-| `prompts.ts` | Mode-specific generation and evaluation prompt text. |
+| `prompts.ts` | Mode-specific generation and evaluation prompt text (phase 1 grade, skip, phase 2 explain). |
+
+Grading itself lives in `shared/` (`evaluateSentencePracticeResponse.ts`, `generateSentencePracticeExplanation.ts`); there are no longer per-mode `evaluate*Response.ts` files.
 
 ## Firestore docs
 
@@ -58,6 +85,7 @@ Flutter StreamProvider            ← listens to question set doc, shows Q1 as i
 
 - `status`: `generating` | `ready` | `failed`
 - `questions[]` — grows incrementally during generation
+- `questions[i].aiEvaluation` — written during grading: `{ score, correctedVersion, correctedVersionSegments, explanations, explanationStatus }`. Phase 1 sets everything except `explanations` (with `explanationStatus: "generating"`); phase 2 merges `explanations` and flips `explanationStatus` to `ready` (or `failed`).
 - `userId`, `assignmentId`
 
 ## Client triggers for generation
