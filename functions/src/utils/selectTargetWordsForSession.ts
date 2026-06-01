@@ -1,8 +1,17 @@
 import * as admin from "firebase-admin";
-import {Timestamp} from "firebase-admin/firestore";
+import {classifyCard, endOfUserDay, type ClassifiedCard} from "./vocabCardClassification";
+import {getRecentlyUsedWordKeys, normalizeWord} from "./recentSentencePracticeWords";
 
-/** Priority bucket a word was selected from. */
-export type PriorityBucket = "new" | "recentFailure" | "hard" | "leech" | "review";
+/** Priority bucket a word was selected from (used for logging / debugging). */
+export type PriorityBucket =
+  | "learning"
+  | "leech"
+  | "hard"
+  | "recentFailure"
+  | "dueReview"
+  | "new"
+  | "notDueReview"
+  | "other";
 
 /** A word chosen for a session, with the bucket it came from. */
 export interface TargetWord {
@@ -17,25 +26,35 @@ export interface SelectTargetWordsOptions {
    * For sentence practice, we typically want 20–30 (default 30).
    */
   maxWords?: number;
-  /** Consider lastFailureAt within this many days (default 7). */
+  /** Consider lastFailureAt within this many days as a "recent failure" (default 7). */
   recentFailureDays?: number;
   /**
-   * Target number of "new" words (cards with state === 0, i.e. FSRS New).
-   * Default 15.
-   */
-  newTarget?: number;
-  /**
-   * Word keys to exclude (e.g. already used this session).
-   * Format: "learningLanguageWord|englishWord".
+   * Word keys to hard-exclude (format: "learningLanguageWord|englishWord").
+   * Recently used words are also excluded automatically (see selection below).
    */
   excludeWordKeys?: string[];
+  /** User's UTC offset in minutes (offset added to UTC = local). Default 0. */
+  timezoneOffsetMinutes?: number;
+  /**
+   * How many recent question sets per mode (translation + production) to scan for
+   * `vocabWordsUsed` and hard-exclude. Default 8 (~last 8 sessions per mode).
+   * Use `2` for "last two assignments" per mode. Set `0` to disable (tests only).
+   */
+  recentQuestionSetsPerCollection?: number;
+  /** If true, do not load recent question sets (benchmark comparing with/without). */
+  skipRecentQuestionSetExclusion?: boolean;
 }
 
-const DEFAULT_OPTIONS: Required<Omit<SelectTargetWordsOptions, "excludeWordKeys">> = {
-  maxWords: 30,
-  recentFailureDays: 7,
-  newTarget: 15,
-};
+const DEFAULT_MAX_WORDS = 30;
+const DEFAULT_RECENT_FAILURE_DAYS = 7;
+
+/** Per-tier slot caps, filled in order until `maxWords` is reached. */
+const TIER_QUOTAS = {
+  learning: 6,
+  weak: 8,
+  dueReview: 12,
+  new: 3,
+} as const;
 
 function shuffle<T>(array: T[]): T[] {
   const out = [...array];
@@ -51,194 +70,207 @@ export function wordKey(w: { learningLanguageWord: string; englishWord: string }
   return `${w.learningLanguageWord}|${w.englishWord}`;
 }
 
-/**
- * Splits the desired number of challenge slots across recentFailure, hard, and leech.
- * Returns the limit to use for each Firestore query so we fetch a balanced mix.
- */
-export function getChallengeMix(totalSlots: number): {recentFailureLimit: number; hardLimit: number; leechLimit: number;} {
-  if (totalSlots <= 0) {
-    return {recentFailureLimit: 0, hardLimit: 0, leechLimit: 0};
-  }
+/** A classified card plus its computed selection score and weak-signal flags. */
+interface ScoredCard {
+  card: ClassifiedCard;
+  score: number;
+  recentFailure: boolean;
+}
 
-  const a = Math.ceil(totalSlots / 3);
-  const b = Math.ceil((totalSlots - a) / 2);
-  const c = totalSlots - a - b;
-  return {
-    recentFailureLimit: a,
-    hardLimit: b,
-    leechLimit: c,
-  };
+function bucketFor(c: ScoredCard): PriorityBucket {
+  if (c.card.category === "learning") return "learning";
+  if (c.card.leechTag) return "leech";
+  if (c.card.hardTag) return "hard";
+  if (c.recentFailure) return "recentFailure";
+  if (c.card.category === "dueReview") return "dueReview";
+  if (c.card.category === "new") return "new";
+  if (c.card.category === "notDueReview") return "notDueReview";
+  return "other";
+}
+
+function scoreCard(c: ClassifiedCard, recentFailure: boolean): number {
+  let score = 0;
+  if (c.category === "learning") score += 100;
+  if (c.leechTag) score += 80;
+  if (c.hardTag) score += 60;
+  if (recentFailure) score += 50;
+  if (c.category === "dueReview") score += 40;
+  if (c.category === "new") score += 30;
+  if (c.category === "notDueReview") score += 5;
+  score -= Math.min(c.stability, 365) * 0.1;
+  score += Math.random() * 3;
+  return score;
 }
 
 /**
- * Selects target words for a sentence session (translation/production) from vocab_cards.
+ * Picks up to `quota` cards from `candidates` favoring high score while keeping
+ * variety: candidates are sorted by score, then `quota` are weighted-randomly
+ * sampled (by score) from the top `2 × quota`. Returns the picks; mutates
+ * nothing in `candidates`.
+ */
+function weightedSampleTopN(candidates: ScoredCard[], quota: number): ScoredCard[] {
+  if (quota <= 0 || candidates.length === 0) return [];
+  if (candidates.length <= quota) return [...candidates];
+
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  const pool = sorted.slice(0, Math.min(sorted.length, quota * 2));
+  const picks: ScoredCard[] = [];
+  const minScore = Math.min(...pool.map((c) => c.score));
+  // Shift weights so the lowest-scoring pool member still has a small chance.
+  const weightOf = (c: ScoredCard) => c.score - minScore + 1;
+
+  const remaining = [...pool];
+  while (picks.length < quota && remaining.length > 0) {
+    const totalWeight = remaining.reduce((s, c) => s + weightOf(c), 0);
+    let r = Math.random() * totalWeight;
+    let idx = 0;
+    for (; idx < remaining.length; idx++) {
+      r -= weightOf(remaining[idx]);
+      if (r <= 0) break;
+    }
+    if (idx >= remaining.length) idx = remaining.length - 1;
+    picks.push(remaining[idx]);
+    remaining.splice(idx, 1);
+  }
+  return picks;
+}
+
+/**
+ * Selects target words for a sentence session (translation/production) from
+ * vocab_cards.
  *
  * High-level contract:
- * - Aim for up to `maxWords` total (default 30).
- * - Aim for up to `newTarget` "new" words (default 15), where "new" =
- *   cards with state === 0 (FSRS New).
- * - Fill the remaining slots with a mix of leech, hard, recentFailure, and review words.
- * - Review words (state === 2, FSRS Review) are used as fallback when other buckets are empty.
- * - Use excludeWordKeys to avoid reusing words already used in the current session.
+ * - Loads ALL of the user's vocab_cards in a single query, then classifies them
+ *   in memory the same way daily vocab does (`vocabCardClassification`).
+ * - Hard-excludes words used in the user's recent translation/production
+ *   sessions (cross-session variety), plus any explicit `excludeWordKeys`.
+ * - Fills up to `maxWords` slots via tier quotas (learning → weak → due review →
+ *   new → variety), scoring + weighted-random sampling within each tier so the
+ *   same well-learned words don't dominate every session.
  */
 export async function selectTargetWordsForSession(userId: string, options: SelectTargetWordsOptions = {}): Promise<TargetWord[]> {
   const db = admin.firestore();
-  const opts = {...DEFAULT_OPTIONS, ...options};
-  const excludeSet = options.excludeWordKeys ? new Set(options.excludeWordKeys) : null;
-  const now = new Date();
-  const failureCutoff = new Date(now);
-  failureCutoff.setDate(failureCutoff.getDate() - opts.recentFailureDays);
-  const failureCutoffTs = Timestamp.fromDate(failureCutoff);
+  const maxWords = options.maxWords ?? DEFAULT_MAX_WORDS;
+  const recentFailureDays = options.recentFailureDays ?? DEFAULT_RECENT_FAILURE_DAYS;
+  const timezoneOffsetMinutes = options.timezoneOffsetMinutes ?? 0;
+  const failureCutoff = new Date(Date.now() - recentFailureDays * 24 * 60 * 60 * 1000);
+  const endOfDay = endOfUserDay(timezoneOffsetMinutes);
 
+  // Explicit excludes (by full word key) + recently used words (by normalized
+  // learning-language expression, since vocabWordsUsed stores expressions).
+  const excludeKeys = new Set(options.excludeWordKeys ?? []);
+  const recentSetsLimit = options.recentQuestionSetsPerCollection ?? 8;
+  const recentlyUsed = options.skipRecentQuestionSetExclusion ?
+    new Set<string>() :
+    await getRecentlyUsedWordKeys(userId, recentSetsLimit);
+/*
   console.log("[selectTargetWordsForSession] start", {
     userId,
-    maxWords: opts.maxWords,
-    newTarget: opts.newTarget,
-    recentFailureDays: opts.recentFailureDays,
-    failureCutoff: failureCutoff.toISOString(),
-    excludeWordKeysCount: excludeSet?.size ?? 0,
+    maxWords,
+    recentFailureDays,
+    timezoneOffsetMinutes,
+    explicitExcludeCount: excludeKeys.size,
+    recentlyUsedCount: recentlyUsed.size,
   });
+  */
 
-  type Doc = admin.firestore.DocumentSnapshot;
-  const toTarget = (d: Doc, bucket: PriorityBucket): TargetWord => {
-    const data = d.data()!;
-    return {
-      learningLanguageWord: data.learningLanguageWord as string,
-      englishWord: data.englishWord as string,
-      priorityBucket: bucket,
-    };
-  };
+  const snap = await db.collection("vocab_cards").where("userId", "==", userId).get();
+  if (snap.empty) {
+    console.log("[selectTargetWordsForSession] no vocab_cards for user");
+    return [];
+  }
 
-  const newTarget = opts.newTarget;
+  let excludedCount = 0;
+  const scored: ScoredCard[] = [];
+  for (const doc of snap.docs) {
+    const card = classifyCard(doc, endOfDay);
+    if (!card.learningLanguageWord || !card.englishWord) continue;
+    if (excludeKeys.has(wordKey(card)) || recentlyUsed.has(normalizeWord(card.learningLanguageWord))) {
+      excludedCount++;
+      continue;
+    }
+    const recentFailure = card.lastFailureAt != null && card.lastFailureAt >= failureCutoff;
+    scored.push({card, score: scoreCard(card, recentFailure), recentFailure});
+  }
 
-  // 1) New words = cards with state === 0 (FSRS New)
-  const newSnap = await db
-    .collection("vocab_cards")
-    .where("userId", "==", userId)
-    .where("state", "==", 0)
-    .orderBy("createdAt", "desc")
-    .limit(newTarget)
-    .get();
+  // Partition into tiers. Each card lands in exactly one tier (first match in
+  // priority order) so quotas don't double-count overlapping signals.
+  const learningTier: ScoredCard[] = [];
+  const weakTier: ScoredCard[] = [];
+  const dueReviewTier: ScoredCard[] = [];
+  const newTier: ScoredCard[] = [];
+  const varietyTier: ScoredCard[] = [];
 
-  console.log("[selectTargetWordsForSession] new (state===0)", {count: newSnap.size});
+  for (const c of scored) {
+    const isWeak = c.card.leechTag || c.card.hardTag || c.recentFailure;
+    if (c.card.category === "learning") {
+      learningTier.push(c);
+    } else if (isWeak) {
+      weakTier.push(c);
+    } else if (c.card.category === "dueReview") {
+      dueReviewTier.push(c);
+    } else if (c.card.category === "new") {
+      newTier.push(c);
+    } else {
+      varietyTier.push(c);
+    }
+  }
 
-  // 2–4) Challenge words: mix of recentFailure, hard, leech (limits from getChallengeMix)
-  const challengeTarget = Math.max(0, opts.maxWords - opts.newTarget);
-  const {recentFailureLimit, hardLimit, leechLimit} = getChallengeMix(challengeTarget);
-
-  const recentFailureSnap = await db
-    .collection("vocab_cards")
-    .where("userId", "==", userId)
-    .where("lastFailureAt", ">=", failureCutoffTs)
-    .orderBy("lastFailureAt", "desc")
-    .limit(recentFailureLimit)
-    .get();
-
-  console.log("[selectTargetWordsForSession] recentFailure (lastFailureAt >= cutoff)", {count: recentFailureSnap.size});
-
-  const hardSnap = await db
-    .collection("vocab_cards")
-    .where("userId", "==", userId)
-    .where("hardTag", "==", true)
-    .limit(hardLimit)
-    .get();
-
-  console.log("[selectTargetWordsForSession] hard (hardTag===true)", {count: hardSnap.size});
-
-  const leechSnap = await db
-    .collection("vocab_cards")
-    .where("userId", "==", userId)
-    .where("leechTag", "==", true)
-    .limit(leechLimit)
-    .get();
-
-  console.log("[selectTargetWordsForSession] leech (leechTag===true)", {count: leechSnap.size});
-
-  // 5) Review words (state === 2) — fallback so translation/production have words when no new/fail/hard/leech
-  const reviewSnap = await db
-    .collection("vocab_cards")
-    .where("userId", "==", userId)
-    .where("state", "==", 2)
-    .orderBy("createdAt", "desc")
-    .limit(opts.maxWords)
-    .get();
-
-  console.log("[selectTargetWordsForSession] review (state===2)", {count: reviewSnap.size});
-
-  const byKey = new Map<string, TargetWord>();
-
-  // Priority when a word appears in multiple buckets: leech > hard > recentFailure > new > review
-  const assign = (w: TargetWord) => {
-    const key = wordKey(w);
-    const existing = byKey.get(key);
-    const order: PriorityBucket[] = ["leech", "hard", "recentFailure", "new", "review"];
-    if (!existing || order.indexOf(w.priorityBucket) < order.indexOf(existing.priorityBucket)) {
-      byKey.set(key, w);
+  const picked: ScoredCard[] = [];
+  const pickedIds = new Set<string>();
+  const take = (candidates: ScoredCard[], quota: number) => {
+    const slotsLeft = Math.max(0, maxWords - picked.length);
+    if (slotsLeft <= 0) return;
+    const fresh = candidates.filter((c) => !pickedIds.has(c.card.id));
+    const chosen = weightedSampleTopN(fresh, Math.min(quota, slotsLeft));
+    for (const c of chosen) {
+      picked.push(c);
+      pickedIds.add(c.card.id);
     }
   };
 
-  newSnap.docs.forEach((d) => assign(toTarget(d, "new")));
-  recentFailureSnap.docs.forEach((d) => assign(toTarget(d, "recentFailure")));
-  hardSnap.docs.forEach((d) => assign(toTarget(d, "hard")));
-  leechSnap.docs.forEach((d) => assign(toTarget(d, "leech")));
-  reviewSnap.docs.forEach((d) => assign(toTarget(d, "review")));
+  take(learningTier, TIER_QUOTAS.learning);
+  take(weakTier, TIER_QUOTAS.weak);
+  take(dueReviewTier, TIER_QUOTAS.dueReview);
+  take(newTier, TIER_QUOTAS.new);
 
-  console.log("[selectTargetWordsForSession] after merge by key", {uniqueCount: byKey.size});
-
-  let all = Array.from(byKey.values());
-  if (excludeSet && excludeSet.size > 0) {
-    all = all.filter((w) => !excludeSet.has(wordKey(w)));
-    console.log("[selectTargetWordsForSession] after excludeWordKeys", {count: all.length});
+  // Variety tier (+ any leftover from earlier tiers) fills the remainder.
+  const remainder = Math.max(0, maxWords - picked.length);
+  if (remainder > 0) {
+    const leftovers = [...varietyTier, ...learningTier, ...weakTier, ...dueReviewTier, ...newTier]
+      .filter((c) => !pickedIds.has(c.card.id));
+    // Dedupe (a card could appear once across these arrays, but be safe).
+    const seen = new Set<string>();
+    const uniqueLeftovers = leftovers.filter((c) => {
+      if (seen.has(c.card.id)) return false;
+      seen.add(c.card.id);
+      return true;
+    });
+    take(uniqueLeftovers, remainder);
   }
 
-  const fromNew = all.filter((w) => w.priorityBucket === "new");
-  const fromFailuresAndHard: TargetWord[] = all.filter(
-    (w) =>
-      w.priorityBucket === "recentFailure" ||
-      w.priorityBucket === "hard" ||
-      w.priorityBucket === "leech" ||
-      w.priorityBucket === "review"
-  );
+  const result = shuffle(picked).map((c) => ({
+    learningLanguageWord: c.card.learningLanguageWord,
+    englishWord: c.card.englishWord,
+    priorityBucket: bucketFor(c),
+  }));
 
-  console.log("[selectTargetWordsForSession] buckets", {
-    fromNew: fromNew.length,
-    fromFailuresAndHard: fromFailuresAndHard.length,
-  });
-
-  // 6) Pick up to newTarget from "new".
-  const picked: TargetWord[] = [];
-  picked.push(...shuffle(fromNew).slice(0, newTarget));
-
-  // 7) Fill the remaining slots with a mix of leech, hard, and recentFailure.
-  const remainingSlots = Math.max(0, opts.maxWords - picked.length);
-  if (remainingSlots > 0 && fromFailuresAndHard.length > 0) {
-    picked.push(...shuffle(fromFailuresAndHard).slice(0, remainingSlots));
-  }
-
-  const shuffled = shuffle(picked);
-  const result = shuffled.slice(0, Math.min(opts.maxWords, picked.length));
+  const byBucket: Record<string, number> = {};
+  for (const w of result) byBucket[w.priorityBucket] = (byBucket[w.priorityBucket] ?? 0) + 1;
+  /*
   console.log("[selectTargetWordsForSession] result", {
-    pickedLength: picked.length,
-    remainingSlots,
+    eligible: scored.length,
+    excludedCount,
+    tiers: {
+      learning: learningTier.length,
+      weak: weakTier.length,
+      dueReview: dueReviewTier.length,
+      new: newTier.length,
+      variety: varietyTier.length,
+    },
     returnedCount: result.length,
+    byBucket,
   });
+  */
   return result;
 }
-
-
-/*
-
-  type Card = {
-    due: Date;             // Date when the card is next due for review
-    stability: number;     // A measure of how well the information is retained
-    difficulty: number;    // Reflects the inherent difficulty of the card content
-    elapsed_days: number;  // Days since the card was last reviewed
-    scheduled_days: number;// The interval of time in days between this review and the next one
-    learning_steps: number;// Keeps track of the current step during the (re)learning stages
-    reps: number;          // Total number of times the card has been reviewed
-    lapses: number;        // Times the card was forgotten or remembered incorrectly
-    state: State;          // The current state of the card (New, Learning, Review, Relearning)
-    last_review?: Date;    // The most recent review date, if applicable
-  };
-
-*/

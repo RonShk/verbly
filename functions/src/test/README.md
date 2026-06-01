@@ -11,6 +11,7 @@ Run all commands from `functions/`.
 | `testGemini.ts` | `npm run test:gemini` |
 | `testSelectTargetWords.ts` | `npm run test:select-target-words -- <userId>` |
 | `monteCarloSelectTargetWords.ts` | `npm run test:monte-carlo-words -- <userId> [--runs 7] [--trials 20] [--max-words 30]` |
+| `benchmarkSelectTargetWords.ts` | `npm run test:benchmark-select-words -- <userId> [--iterations 5]` |
 | `listVocabCardsStateZero.ts` | `npm run test:vocab-state-zero` (default uid) or `npm run test:vocab-state-zero -- <userId>` |
 
 `monteCarloSelectTargetWords` calls `selectTargetWordsForSession` repeatedly with unchanged Firestore state to measure vocab overlap between simulated sessions (issue #51).

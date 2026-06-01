@@ -18,7 +18,7 @@ const db = admin.firestore();
  * On success the doc ends with status="ready"; on failure status="failed" with
  * an `error` message so the client can surface a retry.
  */
-export async function streamGenerateSessionQuestions(config: SessionModeConfig, userId: string, questionSetRef: DocumentReference): Promise<{generatedCount: number}> {
+export async function streamGenerateSessionQuestions(config: SessionModeConfig, userId: string, questionSetRef: DocumentReference, timezoneOffsetMinutes = 0): Promise<{generatedCount: number}> {
   // A neutral schema (`sentence`) shared by both modes; we map it to the
   // mode-specific field name when persisting so existing clients keep working.
   const QuestionItemSchema = z.object({
@@ -28,7 +28,7 @@ export async function streamGenerateSessionQuestions(config: SessionModeConfig, 
   const ResponseSchema = z.object({questions: z.array(QuestionItemSchema)});
 
   try {
-    const words = await selectTargetWordsForSession(userId, {maxWords: 30});
+    const words = await selectTargetWordsForSession(userId, {maxWords: 30, timezoneOffsetMinutes});
     if (words.length === 0) {
       await questionSetRef.update({status: "failed", error: "No vocab words available. Add words before starting a session."});
       return {generatedCount: 0};

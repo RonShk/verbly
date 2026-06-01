@@ -16,10 +16,11 @@ async function handleQuestionSetCreated(config: SessionModeConfig, snap: QueryDo
 
   const userId = data.userId as string | undefined;
   const assignmentId = data.assignmentId as string | undefined;
+  const timezoneOffsetMinutes = typeof data.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : 0;
   if (!userId) return;
 
   try {
-    await streamGenerateSessionQuestions(config, userId, snap.ref);
+    await streamGenerateSessionQuestions(config, userId, snap.ref, timezoneOffsetMinutes);
   } finally {
     if (assignmentId) {
       const fresh = await snap.ref.get();
