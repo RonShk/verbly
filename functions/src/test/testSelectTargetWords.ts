@@ -1,32 +1,24 @@
 /**
- * Simple smoke test for selectTargetWordsForSession.
+ * Single-run smoke test for selectTargetWordsForSession.
  *
  * Run from functions/:
- *   # Using ts-node directly
- *   npx ts-node --compilerOptions '{"module":"CommonJS","moduleResolution":"node"}' src/utils/testSelectTargetWords.ts demo_user
- *
- *   # Or via npm script (see package.json):
- *   npm run test:select-target-words -- demo_user
+ *   npm run test:select-target-words -- YOUR_USER_ID
  */
-import * as admin from "firebase-admin";
-import {selectTargetWordsForSession} from "./selectTargetWordsForSession";
+import {selectTargetWordsForSession} from "../utils/selectTargetWordsForSession";
+import {ensureFirebaseApp} from "./firebaseInit";
 
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    projectId: process.env.GCLOUD_PROJECT ?? "vocab-forge-78557",
-    credential: admin.credential.applicationDefault(),
-  });
-}
+ensureFirebaseApp();
 
 async function main(): Promise<void> {
-  const userIdArg = process.argv[2] || "demo_user";
+  const userIdArg = process.argv[2];
+  if (!userIdArg) {
+    console.error("Usage: npm run test:select-target-words -- <userId>");
+    process.exit(1);
+  }
 
   console.log(`Selecting target words for userId="${userIdArg}"...`);
 
-  // Default run (use maxWords: 30, newestLimit: 30 for sentence practice)
-  const words = await selectTargetWordsForSession(userIdArg, {
-    maxWords: 15,
-  });
+  const words = await selectTargetWordsForSession(userIdArg, {maxWords: 30});
 
   if (words.length === 0) {
     console.log("No target words found (vocab_cards may be empty for this user).");
@@ -55,4 +47,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
