@@ -21,6 +21,31 @@ streamGenerateSessionQuestions    ← Gemini streaming, appends questions to Fir
 Flutter StreamProvider            ← listens to question set doc, shows Q1 as it arrives
 ```
 
+## Word selection (`selectTargetWordsForSession`)
+
+Generation picks up to 30 target words from the user's `vocab_cards` before
+prompting Gemini. Selection (`functions/src/utils/selectTargetWordsForSession.ts`):
+
+1. **Loads all** of the user's `vocab_cards` in one query and classifies each in
+   memory the same way daily vocab does (`utils/vocabCardClassification.ts`:
+   `learning` = state 1/3, `new` = state 0, `dueReview`/`notDueReview` = state 2
+   split on end of the user's local day, `other` = unknown state).
+2. **Excludes** words used in the user's recent translation/production sessions
+   (`utils/recentSentencePracticeWords.ts` reads the last few question sets per
+   collection and matches `questions[].vocabWordsUsed` against each card's
+   normalized `learningLanguageWord`), plus any explicit `excludeWordKeys`. This
+   is what keeps consecutive sessions from reusing the same words/story.
+3. **Fills 30 slots by tier quota** in order — learning (6), weak (8: leech /
+   hard / failure within 7d), due review (12), new (3), then a variety remainder
+   (not-due review + other). Within each tier, cards are scored (FSRS-derived,
+   minus a `stability` penalty) and **weighted-randomly sampled** from the top
+   candidates so well-learned, far-future cards rarely appear and the same words
+   don't dominate every run.
+
+`timezoneOffsetMinutes` is captured at `enqueueSessionGeneration`, persisted on
+the question set doc, and read by the onCreate trigger so "due today" matches the
+user's local day.
+
 **Grading** is separate and runs in two phases, shared by both modes:
 
 ```

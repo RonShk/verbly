@@ -30,6 +30,7 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
   if (!assignmentId || typeof assignmentId !== "string") {
     throw new functions.https.HttpsError("invalid-argument", "assignmentId is required.");
   }
+  const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : 0;
 
   const assignmentRef = db.collection("user_todo_assignments").doc(assignmentId);
 
@@ -73,6 +74,7 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
       questions: [],
       generatedCount: 0,
       targetQuestionCount: config.questionCount,
+      timezoneOffsetMinutes,
       createdAt: Timestamp.now(),
     });
     tx.update(assignmentRef, {

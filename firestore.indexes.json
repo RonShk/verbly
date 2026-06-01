@@ -60,6 +60,16 @@
       "collectionGroup": "vocab_cards",
       "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "leechTag", "order": "ASCENDING" } ]
+    },
+    {
+      "collectionGroup": "translation_question_sets",
+      "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ]
+    },
+    {
+      "collectionGroup": "production_question_sets",
+      "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ]
     }
   ],
   "fieldOverrides": [
