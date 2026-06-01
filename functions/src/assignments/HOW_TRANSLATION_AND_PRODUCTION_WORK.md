@@ -34,10 +34,10 @@ evaluateSentencePracticeResponse      ← phase 1 (blocking, MINIMAL thinking)
 client shows feedback screen immediately, then fires (unawaited):
        │
        ▼
-generateSentencePracticeExplanation   ← phase 2 (background, MINIMAL thinking)
-       │  teaching explanations only
+generateSentencePracticeExplanation   ← phase 2 (background, MINIMAL thinking, streamed)
+       │  streams each explanation bullet into aiEvaluation.explanations[]
        ▼
-merges aiEvaluation { explanations, explanationStatus: "ready" }
+sets aiEvaluation { explanationStatus: "ready" } when the stream completes
        │
        ▼
 Flutter session stream                ← explanation section fills in live
@@ -60,7 +60,7 @@ mode config. Skips never request a score.
 | `streamingJsonArray.ts` | Parses complete question objects from partial structured JSON stream. |
 | `persistEvaluatedQuestion.ts` | Transactional single-question writes during grading: `persistEvaluatedQuestion` (phase 1) and `mergeQuestionEvaluation` (phase 2 merge). Safe while generation still appends. |
 | `evaluateSentencePracticeResponse.ts` | Phase 1 grading callable: score + corrected translation. |
-| `generateSentencePracticeExplanation.ts` | Phase 2 callable: teaching explanations, merged onto the question. |
+| `generateSentencePracticeExplanation.ts` | Phase 2 callable: streams teaching bullets via `StreamingJsonArrayExtractor`, appends each to the question, then sets `ready`. |
 
 ### Per mode (`translation/`, `production/`)
 
@@ -85,7 +85,7 @@ Grading itself lives in `shared/` (`evaluateSentencePracticeResponse.ts`, `gener
 
 - `status`: `generating` | `ready` | `failed`
 - `questions[]` — grows incrementally during generation
-- `questions[i].aiEvaluation` — written during grading: `{ score, correctedVersion, correctedVersionSegments, explanations, explanationStatus }`. Phase 1 sets everything except `explanations` (with `explanationStatus: "generating"`); phase 2 merges `explanations` and flips `explanationStatus` to `ready` (or `failed`).
+- `questions[i].aiEvaluation` — written during grading: `{ score, correctedVersion, correctedVersionSegments, explanations, explanationStatus }`. Phase 1 sets score/corrected with `explanations: []` and `explanationStatus: "generating"`; phase 2 appends each explanation bullet as it streams, then sets `explanationStatus` to `ready` (or `failed`).
 - `userId`, `assignmentId`
 
 ## Client triggers for generation
