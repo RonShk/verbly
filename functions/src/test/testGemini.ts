@@ -9,7 +9,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import {z} from "zod";
-import {generateStructured} from "./geminiClient";
+import {generateStructured} from "../ai/geminiClient";
 
 const translationResponseSchema = z.object({
   questions: z.array(
