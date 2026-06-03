@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-
+import {deckCardsRef} from "./deck/paths";
 const db = admin.firestore();
 
 /** Max new cards per day: 5 new + up to 10 learning/review = 15 total. */
@@ -41,7 +41,7 @@ function endOfUserDay(utcOffsetMinutes: number): Date {
 }
 
 async function getVocabDueInfo(userId: string, utcOffsetMinutes = 0): Promise<VocabDueInfo> {
-  const snap = await db.collection("vocab_cards").where("userId", "==", userId).get();
+  const snap = await deckCardsRef(db, userId).get();
 
   if (snap.empty) {
     return {hasCards: false, dueCount: 0, reviewCards: [], learningCards: [], newCards: []};

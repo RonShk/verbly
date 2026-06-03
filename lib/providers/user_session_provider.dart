@@ -8,6 +8,7 @@ import '../services/auth/google_sign_in_method.dart';
 import '../services/auth/sign_in_method.dart';
 import '../services/auth/student_doc_service.dart';
 import '../services/auth/user_session.dart';
+import '../services/student_vocab_service.dart';
 
 /// Web client (server) OAuth client id for the Firebase project. Used as
 /// `serverClientId` on Android so Credential Manager mints an idToken Firebase
@@ -72,5 +73,6 @@ final ensureStudentDocProvider = Provider<void>((ref) {
     final user = next.value;
     if (user == null || user.isAnonymous) return;
     await ensureStudentDocExists();
+    await touchStudentVocabLastActive();
   });
 });

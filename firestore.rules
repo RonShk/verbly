@@ -15,17 +15,16 @@ service cloud.firestore {
       return isOwner(get(/databases/$(database)/documents/user_assignments/$(assignmentId)).data.userId);
     }
 
-    // Student-owned learning data (userId on doc = Firebase Auth uid).
-    match /vocab_cards/{cardId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow update, delete: if isOwner(resource.data.userId);
-    }
+    // Per-student vocab deck: parent holds summary; cards subcollection holds FSRS state.
+    // All writes go through Cloud Functions (Admin SDK). Clients read only.
+    match /student_vocab/{studentUid} {
+      allow read: if isOwner(studentUid);
+      allow write: if false;
 
-    match /vocab_lists/{listId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow update, delete: if isOwner(resource.data.userId);
+      match /cards/{cardId} {
+        allow read: if isOwner(studentUid);
+        allow write: if false;
+      }
     }
 
     // Unified sentence-practice assignments (issue #58): one doc per assignment

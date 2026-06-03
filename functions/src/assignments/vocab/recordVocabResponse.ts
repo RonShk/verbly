@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import {Timestamp} from "firebase-admin/firestore";
+import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {Grade} from "ts-fsrs";
 import {
   docToCard,
@@ -9,6 +9,8 @@ import {
   getFSRS,
   type VocabCardDoc,
 } from "./fsrsCard";
+import {deckCardRef, deckRef} from "./deck/paths";
+import {stateCountDelta} from "./deck/summary";
 
 const db = admin.firestore();
 
@@ -50,7 +52,8 @@ export const recordVocabResponse = functions.https.onCall(async (data, context) 
     );
   }
 
-  const cardRef = db.collection("vocab_cards").doc(vocabCardId);
+  const cardRef = deckCardRef(db, userId, vocabCardId);
+  const deckDocRef = deckRef(db, userId);
   const cardSnap = await cardRef.get();
 
   if (!cardSnap.exists) {
@@ -58,51 +61,40 @@ export const recordVocabResponse = functions.https.onCall(async (data, context) 
   }
 
   const cardData = cardSnap.data() as VocabCardDoc;
-  if (cardData.userId !== userId) {
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Vocab card does not belong to this user."
-    );
-  }
-
+  const oldState = typeof cardData.state === "number" ? cardData.state : 0;
   const card = docToCard(cardData);
   const now = new Date();
   const grade = toRating(rating);
   const f = getFSRS();
   const {card: nextCard} = f.next(card, now, grade as Grade);
-
   const update = cardToUpdate(nextCard, Timestamp);
 
-  // Update lightweight per-word stats directly on the vocab_cards doc.
   const raw = cardData as unknown as Record<string, unknown>;
   const prevAgainCount = (raw.againCount as number | undefined) ?? 0;
   const statsUpdate: Record<string, unknown> = {};
 
-  // First time the user sees this card: set firstLearnedAt (distinct from createdAt).
   if (raw.firstLearnedAt == null) {
     statsUpdate.firstLearnedAt = Timestamp.fromDate(now);
   }
 
-  // Treat ratings 1 (Again) and 2 (Hard) as "failures" for scheduling purposes.
   if (rating <= 2) {
     const newAgainCount = prevAgainCount + 1;
-    (statsUpdate as any).lastFailureAt = Timestamp.fromDate(now);
-    (statsUpdate as any).againCount = newAgainCount;
-
-    // Mark as "hard" after a few failures so we can prioritize in scheduling.
-    if (newAgainCount >= 2) {
-      (statsUpdate as any).hardTag = true;
-    }
-
-    // Simple heuristic: automatically mark as leech after several failures.
-    if (newAgainCount >= 5) {
-      (statsUpdate as any).leechTag = true;
-    }
+    statsUpdate.lastFailureAt = Timestamp.fromDate(now);
+    statsUpdate.againCount = newAgainCount;
+    if (newAgainCount >= 2) statsUpdate.hardTag = true;
+    if (newAgainCount >= 5) statsUpdate.leechTag = true;
   }
 
-  await cardRef.update({
-    ...update,
-    ...statsUpdate,
+  const reviewTs = Timestamp.fromDate(now);
+
+  await db.runTransaction(async (tx) => {
+    tx.update(cardRef, {...update, ...statsUpdate});
+    tx.set(deckDocRef, {
+      studentUid: userId,
+      lastReviewAt: reviewTs,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...stateCountDelta(oldState, nextCard.state as number),
+    }, {merge: true});
   });
 
   const total = typeof totalQuestionCount === "number" ? totalQuestionCount : 0;

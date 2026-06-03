@@ -2,10 +2,11 @@
   "name": "functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedVocab.ts",
+    "seed:vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/scripts/seedVocab.ts",
     "seed:production": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedProduction.ts",
     "anki:print-cards": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/scripts/printAnkiCards.ts",
     "migrate:vocab-cards-user-id": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/scripts/migrateVocabCardsUserId.ts",
+    "migrate:student-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/scripts/migrateToStudentVocab.ts",
     "strip-html": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/scripts/cleanVocabHtml.ts",
     "seed:translation": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedTranslation.ts",
     "seed:all-from-vocab": "npx ts-node --compilerOptions '{\"module\":\"CommonJS\",\"moduleResolution\":\"node\"}' src/seeding/seedAllFromVocabList.ts",

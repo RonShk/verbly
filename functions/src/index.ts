@@ -10,6 +10,7 @@ setGlobalOptions({maxInstances: 10});
 export {createStudentDoc} from "./triggers/createStudentDoc";
 export {getVocabSession} from "./assignments/vocab/getVocabSession";
 export {recordVocabResponse} from "./assignments/vocab/recordVocabResponse";
+export {touchStudentVocabLastActive} from "./assignments/vocab/touchStudentVocabLastActive";
 
 export {getProductionSession} from "./assignments/sentence-practice/production/getProductionSession";
 export {prepareProductionContinueReview} from "./assignments/sentence-practice/production/prepareProductionContinueReview";
