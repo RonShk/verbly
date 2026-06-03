@@ -1,10 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
-/// Placement of the daily Translation assignment on Home.
-///
-/// - [todo]: user has not completed today's Translation assignment yet.
-/// - [completed]: user has already completed today's Translation assignment.
-enum TranslationDailyPlacement { todo, completed }
+import '../models/assignment_completion_status.dart';
 
 /// Lightweight "stub" status for the daily Translation assignment.
 ///
@@ -14,7 +10,7 @@ enum TranslationDailyPlacement { todo, completed }
 /// called to start streaming questions.
 class TranslationDailyStatus {
   const TranslationDailyStatus({
-    required this.placement,
+    required this.completionStatus,
     required this.assignmentId,
     required this.teacher,
     required this.completedQuestionCount,
@@ -22,7 +18,7 @@ class TranslationDailyStatus {
     required this.cumulativeOffsetQuestionCount,
   });
 
-  final TranslationDailyPlacement placement;
+  final AssignmentCompletionStatus completionStatus;
 
   /// Id of the todo doc in Firestore. Null when there is no active todo for
   /// today (only completed docs exist). When the user taps "Continue review"
@@ -48,12 +44,8 @@ class TranslationDailyStatus {
         'TranslationDailyStatus expected a Map, got ${json.runtimeType}',
       );
     }
-    final placementStr = (json['placement'] as String?)?.toUpperCase() ?? 'TODO';
-    final placement = placementStr == 'COMPLETED'
-        ? TranslationDailyPlacement.completed
-        : TranslationDailyPlacement.todo;
     return TranslationDailyStatus(
-      placement: placement,
+      completionStatus: assignmentCompletionStatusFromApi(json['completionStatus'] as String?),
       assignmentId: json['assignmentId'] as String?,
       teacher: (json['teacher'] as String?) ?? '',
       completedQuestionCount: (json['completedQuestionCount'] as num?)?.toInt() ?? 0,

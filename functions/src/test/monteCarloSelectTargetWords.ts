@@ -13,7 +13,7 @@
  *
  * Requires: gcloud auth application-default login (or GOOGLE_APPLICATION_CREDENTIALS)
  */
-import {selectTargetWordsForSession, wordKey, type TargetWord} from "../utils/selectTargetWordsForSession";
+import {selectTargetWordsForSession, wordKey, type TargetWord} from "../assignments/sentence-practice/shared/question-generation/trigger/helpers/selectTargetWordsForSession";
 import {ensureFirebaseApp} from "./firebaseInit";
 
 ensureFirebaseApp();

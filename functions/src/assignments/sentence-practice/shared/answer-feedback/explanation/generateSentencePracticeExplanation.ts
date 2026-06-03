@@ -1,13 +1,11 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import {ThinkingLevel} from "@google/genai";
 import {z} from "zod";
-import {generateStructuredStream} from "../../ai/geminiClient";
-import {appendExplanationBullet, mergeQuestionEvaluation} from "./persistEvaluatedQuestion";
-import {getModeConfig} from "./sessionModes";
-import {StreamingJsonArrayExtractor} from "./streamingJsonArray";
-
-const db = admin.firestore();
+import {generateStructuredStream} from "../../../../../ai/geminiClient";
+import {appendExplanationBullet, mergeQuestionEvaluation} from "./persistExplanationUpdates";
+import {getModeConfig} from "../../core/sessionModes";
+import {StreamingJsonArrayExtractor} from "../../core/streamingJsonArray";
+import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -39,7 +37,7 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
     throw new functions.https.HttpsError("invalid-argument", "questionIndex must be a non-negative number.");
   }
 
-  const assignmentRef = db.collection("user_todo_assignments").doc(assignmentId);
+  const assignmentRef = assignmentDocRef(assignmentId);
   const assignmentSnap = await assignmentRef.get();
   if (!assignmentSnap.exists) {
     throw new functions.https.HttpsError("not-found", "Assignment not found.");
@@ -51,18 +49,11 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
 
   const config = getModeConfig(assignment.type as string);
 
-  const questionSetId = assignment.questionSetId as string;
-  const questionSetRef = db.collection(config.questionSetCollection).doc(questionSetId);
-  const questionSetSnap = await questionSetRef.get();
-  if (!questionSetSnap.exists) {
-    throw new functions.https.HttpsError("not-found", "Question set not found.");
-  }
-
-  const questions = questionSetSnap.data()!.questions as Array<Record<string, unknown>>;
-  const question = questions[questionIndex];
-  if (!question) {
+  const questionSnap = await questionDocRef(assignmentRef, questionIndex).get();
+  if (!questionSnap.exists) {
     throw new functions.https.HttpsError("not-found", `Question at index ${questionIndex} not found.`);
   }
+  const question = questionSnap.data()!;
 
   const evaluation = (question.aiEvaluation as Record<string, unknown> | undefined) ?? {};
   const correctedVersion = evaluation.correctedVersion as string | undefined;
@@ -87,7 +78,7 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
   const sentence = question[config.sentenceField] as string;
   const vocabWordsUsed = (question.vocabWordsUsed as string[]) ?? [];
 
-  await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "generating", explanations: []});
+  await mergeQuestionEvaluation(assignmentRef, questionIndex, {explanationStatus: "generating", explanations: []});
 
   const descriptions = config.evaluateDescriptions;
   const ExplanationItemSchema = z.object({
@@ -107,17 +98,17 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
       for (const rawElement of completedElements) {
         try {
           const item = ExplanationItemSchema.parse(JSON.parse(rawElement));
-          await appendExplanationBullet(questionSetRef, questionIndex, item);
+          await appendExplanationBullet(assignmentRef, questionIndex, item);
         } catch {
           continue;
         }
       }
     }, ThinkingLevel.MINIMAL);
 
-    await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "ready"});
+    await mergeQuestionEvaluation(assignmentRef, questionIndex, {explanationStatus: "ready"});
     return {status: "ready"};
   } catch (err) {
-    await mergeQuestionEvaluation(questionSetRef, questionIndex, {explanationStatus: "failed"}).catch(() => undefined);
+    await mergeQuestionEvaluation(assignmentRef, questionIndex, {explanationStatus: "failed"}).catch(() => undefined);
     functions.logger.error("generateSentencePracticeExplanation failed", {assignmentId, questionIndex, error: String(err)});
     throw new functions.https.HttpsError("internal", "Failed to generate explanation.");
   }

@@ -1,11 +1,11 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 /// Metadata returned by [enqueueSessionGeneration]: enough to subscribe to the
-/// question set doc and render the session shell while questions stream in.
+/// assignment doc + its `questions` subcollection and render the session shell
+/// while questions stream in.
 class SessionEnqueueResult {
   const SessionEnqueueResult({
     required this.assignmentId,
-    required this.questionSetId,
     required this.status,
     required this.type,
     required this.assignmentTitle,
@@ -16,9 +16,8 @@ class SessionEnqueueResult {
   });
 
   final String assignmentId;
-  final String questionSetId;
 
-  /// Generation status of the question set: 'generating' | 'ready' | 'failed'.
+  /// Generation lifecycle status: 'generating' | 'ready' | 'failed'.
   final String status;
   final String type;
   final String assignmentTitle;
@@ -33,7 +32,6 @@ class SessionEnqueueResult {
     }
     return SessionEnqueueResult(
       assignmentId: (json['assignmentId'] as String?) ?? '',
-      questionSetId: (json['questionSetId'] as String?) ?? '',
       status: (json['status'] as String?) ?? 'generating',
       type: (json['type'] as String?) ?? '',
       assignmentTitle: (json['assignmentTitle'] as String?) ?? '',

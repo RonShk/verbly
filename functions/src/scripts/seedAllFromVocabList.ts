@@ -12,8 +12,8 @@ import * as admin from "firebase-admin";
 import {z} from "zod";
 import {generateStructured} from "../ai/geminiClient";
 import {getWeekBounds} from "../utils/getWeekBounds";
-import {ProductionPrompts} from "../assignments/production/prompts";
-import {TranslationPrompts} from "../assignments/translation/prompts";
+import {ProductionPrompts} from "../assignments/sentence-practice/production/prompts";
+import {TranslationPrompts} from "../assignments/sentence-practice/translation/prompts";
 
 if (admin.apps.length === 0) {
   admin.initializeApp({

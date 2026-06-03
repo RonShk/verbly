@@ -55,7 +55,7 @@ class _ProductionSessionPageState
   }
 
   /// Invalidate Home's cached Production status so the returning Home page
-  /// re-queries placement (e.g. moved from Todo → Completed).
+  /// re-queries completion status (e.g. moved from Todo → Completed).
   void _invalidateHome() {
     ref.read(productionDailyProvider.notifier).clear();
   }

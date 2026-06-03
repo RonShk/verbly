@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/assignment_completion_status.dart';
 import '../models/home_page_models.dart';
 import '../providers/production_session_provider.dart';
 import '../providers/translation_session_provider.dart';
@@ -63,7 +64,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     final translation = ref.read(translationDailyProvider).value;
     if (translation != null &&
-        translation.placement == TranslationDailyPlacement.todo &&
+        translation.completionStatus == AssignmentCompletionStatus.todo &&
         translation.completedQuestionCount == 0 &&
         (translation.assignmentId?.isNotEmpty ?? false)) {
       enqueueSessionGeneration(assignmentId: translation.assignmentId!).ignore();
@@ -71,7 +72,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     final production = ref.read(productionDailyProvider).value;
     if (production != null &&
-        production.placement == ProductionDailyPlacement.todo &&
+        production.completionStatus == AssignmentCompletionStatus.todo &&
         production.completedQuestionCount == 0 &&
         (production.assignmentId?.isNotEmpty ?? false)) {
       enqueueSessionGeneration(assignmentId: production.assignmentId!).ignore();
@@ -246,7 +247,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }) {
     final state = translationDaily.value;
     if (state == null) return;
-    if (state.placement == TranslationDailyPlacement.todo) {
+    if (state.completionStatus == AssignmentCompletionStatus.todo) {
       todoAssignments.add(
         HomeAssignment(
           id: state.assignmentId ?? '',
@@ -260,7 +261,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       );
     } else {
-      // The backend sets placement=COMPLETED both for "fully done today" and
+      // The backend sets completionStatus=COMPLETED both for "fully done today" and
       // for a wave-2+ that hasn't been started yet (hide flag set). In the
       // latter case, the assignmentId is non-null and we can navigate
       // directly without re-preparing.
@@ -278,7 +279,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }) {
     final state = productionDaily.value;
     if (state == null) return;
-    if (state.placement == ProductionDailyPlacement.todo) {
+    if (state.completionStatus == AssignmentCompletionStatus.todo) {
       todoAssignments.add(
         HomeAssignment(
           id: state.assignmentId ?? '',

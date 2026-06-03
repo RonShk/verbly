@@ -8,8 +8,8 @@
  * Requires: gcloud auth application-default login
  */
 import * as admin from "firebase-admin";
-import {selectTargetWordsForSession} from "../utils/selectTargetWordsForSession";
-import {getRecentlyUsedWordKeys} from "../utils/recentSentencePracticeWords";
+import {selectTargetWordsForSession} from "../assignments/sentence-practice/shared/question-generation/trigger/helpers/selectTargetWordsForSession";
+import {getRecentlyUsedWordKeys} from "../assignments/sentence-practice/shared/question-generation/trigger/helpers/recentSentencePracticeWords";
 import {ensureFirebaseApp} from "./firebaseInit";
 
 ensureFirebaseApp();

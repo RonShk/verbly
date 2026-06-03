@@ -11,6 +11,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function assignmentOwner(assignmentId) {
+      return isOwner(get(/databases/$(database)/documents/user_assignments/$(assignmentId)).data.userId);
+    }
+
     // Student-owned learning data (userId on doc = Firebase Auth uid).
     match /vocab_cards/{cardId} {
       allow read: if isOwner(resource.data.userId);
@@ -24,31 +28,21 @@ service cloud.firestore {
       allow update, delete: if isOwner(resource.data.userId);
     }
 
-    match /user_todo_assignments/{assignmentId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow update, delete: if isOwner(resource.data.userId);
-    }
-
-    match /user_completed_assignments/{assignmentId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow update, delete: if isOwner(resource.data.userId);
-    }
-
-    // Sentence-practice question sets: the student app subscribes directly to
-    // its own question set docs to stream questions as they are generated.
-    // Writes remain Admin-SDK only (Cloud Functions generation pipeline).
-    match /production_question_sets/{setId} {
+    // Unified sentence-practice assignments (issue #58): one doc per assignment
+    // with a `questions` subcollection. The student app subscribes directly to
+    // its own assignment doc + questions to stream progress and questions as
+    // they are generated. All writes are Admin-SDK only (Cloud Functions:
+    // session lookup/creation, generation pipeline, grading).
+    match /user_assignments/{assignmentId} {
       allow read: if isOwner(resource.data.userId);
       allow write: if false;
-    }
-    match /translation_question_sets/{setId} {
-      allow read: if isOwner(resource.data.userId);
-      allow write: if false;
-    }
-    match /vocab_question_sets/{document=**} {
-      allow read, write: if false;
+
+      // List queries use orderBy('index') only (no userId filter). Authorize via
+      // the parent assignment so Firestore can prove the query is safe.
+      match /questions/{questionId} {
+        allow read: if assignmentOwner(assignmentId);
+        allow write: if false;
+      }
     }
 
     // Tutor schema (Step 4+): deny direct client access; teacher site uses Admin SDK.
