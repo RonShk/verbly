@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import {classifyCard, endOfUserDay, type ClassifiedCard} from "./vocabCardClassification";
+import {classifyCard, endOfUserDay, type ClassifiedCard} from "../../../../../../utils/vocabCardClassification";
 import {getRecentlyUsedWordKeys, normalizeWord} from "./recentSentencePracticeWords";
 
 /** Priority bucket a word was selected from (used for logging / debugging). */
@@ -36,12 +36,11 @@ export interface SelectTargetWordsOptions {
   /** User's UTC offset in minutes (offset added to UTC = local). Default 0. */
   timezoneOffsetMinutes?: number;
   /**
-   * How many recent question sets per mode (translation + production) to scan for
-   * `vocabWordsUsed` and hard-exclude. Default 8 (~last 8 sessions per mode).
-   * Use `2` for "last two assignments" per mode. Set `0` to disable (tests only).
+   * How many recent assignments to scan for `vocabWordsUsed` and hard-exclude.
+   * Default 16 (~last 16 sessions across modes). Set `0` to disable (tests only).
    */
   recentQuestionSetsPerCollection?: number;
-  /** If true, do not load recent question sets (benchmark comparing with/without). */
+  /** If true, do not load recent assignments (benchmark comparing with/without). */
   skipRecentQuestionSetExclusion?: boolean;
 }
 
@@ -159,7 +158,7 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   // Explicit excludes (by full word key) + recently used words (by normalized
   // learning-language expression, since vocabWordsUsed stores expressions).
   const excludeKeys = new Set(options.excludeWordKeys ?? []);
-  const recentSetsLimit = options.recentQuestionSetsPerCollection ?? 8;
+  const recentSetsLimit = options.recentQuestionSetsPerCollection ?? 16;
   const recentlyUsed = options.skipRecentQuestionSetExclusion ?
     new Set<string>() :
     await getRecentlyUsedWordKeys(userId, recentSetsLimit);

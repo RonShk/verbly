@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "user_todo_assignments",
+      "collectionGroup": "user_assignments",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
@@ -10,17 +10,20 @@
       ]
     },
     {
-      "collectionGroup": "user_completed_assignments",
+      "collectionGroup": "user_assignments",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "assignmentDate", "order": "ASCENDING" }
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "user_completed_assignments",
+      "collectionGroup": "user_assignments",
       "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "completedAt", "order": "DESCENDING" } ]
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
     },
     {
       "collectionGroup": "vocab_cards",
@@ -60,19 +63,9 @@
       "collectionGroup": "vocab_cards",
       "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "leechTag", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "translation_question_sets",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ]
-    },
-    {
-      "collectionGroup": "production_question_sets",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" } ]
     }
   ],
   "fieldOverrides": [
-    
+
   ]
 }

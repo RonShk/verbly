@@ -4,7 +4,7 @@
  * Run from functions/:
  *   npm run test:select-target-words -- YOUR_USER_ID
  */
-import {selectTargetWordsForSession} from "../utils/selectTargetWordsForSession";
+import {selectTargetWordsForSession} from "../assignments/sentence-practice/shared/question-generation/trigger/helpers/selectTargetWordsForSession";
 import {ensureFirebaseApp} from "./firebaseInit";
 
 ensureFirebaseApp();

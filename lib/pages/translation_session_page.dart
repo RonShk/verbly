@@ -53,7 +53,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   }
 
   /// Invalidate Home's cached Translation status so the returning Home page
-  /// re-queries placement (e.g. moved from Todo → Completed).
+  /// re-queries completion status (e.g. moved from Todo → Completed).
   void _invalidateHome() {
     ref.read(translationDailyProvider.notifier).clear();
   }

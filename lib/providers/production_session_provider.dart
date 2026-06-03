@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/assignment_completion_status.dart';
 import '../models/production_session_models.dart';
 import '../services/production_session_api_calls.dart';
 import '../services/session_generation_api.dart';
@@ -13,7 +14,7 @@ import '../services/session_generation_api.dart';
 /// at midnight (mirrors vocab).
 class ProductionDailyState {
   const ProductionDailyState({
-    required this.placement,
+    required this.completionStatus,
     required this.assignmentId,
     required this.teacher,
     required this.completedQuestionCount,
@@ -22,7 +23,7 @@ class ProductionDailyState {
     required this.sessionDateKey,
   });
 
-  final ProductionDailyPlacement placement;
+  final AssignmentCompletionStatus completionStatus;
   final String? assignmentId;
   final String teacher;
   final int completedQuestionCount;
@@ -45,7 +46,7 @@ class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>>
   @override
   AsyncValue<ProductionDailyState> build() => const AsyncValue.loading();
 
-  /// Fetch today's placement/counts. Skipped if already cached for today.
+  /// Fetch today's completion status/counts. Skipped if already cached for today.
   Future<void> loadIfNeeded() async {
     final current = state.value;
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
@@ -57,7 +58,7 @@ class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>>
     state = await AsyncValue.guard(() async {
       final dto = await getProductionSession();
       return ProductionDailyState(
-        placement: dto.placement,
+        completionStatus: dto.completionStatus,
         assignmentId: dto.assignmentId,
         teacher: dto.teacher,
         completedQuestionCount: dto.completedQuestionCount,
@@ -82,11 +83,11 @@ final productionDailyProvider =
 
 /// Family keyed by `assignmentId` that streams a Production session.
 ///
-/// 1. Enqueues generation (idempotent, non-blocking) and gets the question set
-///    id + session metadata.
-/// 2. Subscribes to both the assignment doc (live progress counts) and the
-///    question set doc (questions appended as they are generated), emitting a
-///    merged [ProductionSessionData] whenever either changes.
+/// 1. Enqueues generation (idempotent, non-blocking) and gets session metadata.
+/// 2. Subscribes to both the assignment doc (live progress counts + generation
+///    status) and its `questions` subcollection (one doc per question, appended
+///    as they are generated), emitting a merged [ProductionSessionData]
+///    whenever either changes.
 ///
 /// This lets the session page show question 1 the moment it streams in, rather
 /// than blocking until all questions exist.
@@ -99,34 +100,31 @@ final productionSessionStreamProvider =
 );
 
 Stream<ProductionSessionData> _streamProductionSession(SessionEnqueueResult enqueue) {
-  final firestore = FirebaseFirestore.instance;
-  final assignmentStream = firestore.collection('user_todo_assignments').doc(enqueue.assignmentId).snapshots();
-  final questionSetStream = firestore.collection('production_question_sets').doc(enqueue.questionSetId).snapshots();
+  final assignmentRef = FirebaseFirestore.instance.collection('user_assignments').doc(enqueue.assignmentId);
+  final assignmentStream = assignmentRef.snapshots();
+  final questionsStream = assignmentRef.collection('questions').orderBy('index').snapshots();
 
   final controller = StreamController<ProductionSessionData>();
   DocumentSnapshot<Map<String, dynamic>>? assignmentSnap;
-  DocumentSnapshot<Map<String, dynamic>>? questionSetSnap;
+  QuerySnapshot<Map<String, dynamic>>? questionsSnap;
 
   void emit() {
-    if (questionSetSnap == null) return;
-    final qs = questionSetSnap!.data() ?? const {};
-    final assignment = assignmentSnap?.data();
+    if (assignmentSnap == null) return;
+    final assignment = assignmentSnap!.data();
+    if (assignment == null) return;
 
-    final status = (qs['status'] as String?) ?? enqueue.status;
+    final status = (assignment['generationStatus'] as String?) ?? enqueue.status;
     if (status == 'failed') {
-      controller.addError(Exception((qs['error'] as String?) ?? 'Generation failed.'));
+      controller.addError(Exception((assignment['generationError'] as String?) ?? 'Generation failed.'));
       return;
     }
 
-    final rawQuestions = (qs['questions'] as List?) ?? const [];
-    final questions = rawQuestions.map((e) => ProductionQuestion.fromJson(e)).toList()..sort((a, b) => a.index.compareTo(b.index));
+    final questions = (questionsSnap?.docs ?? const []).map((d) => ProductionQuestion.fromJson(d.data())).toList()..sort((a, b) => a.index.compareTo(b.index));
 
-    // The todo doc is deleted once the wave is completed; fall back to enqueue
-    // metadata and treat the wave as fully answered in that window.
-    final completed = (assignment?['completedQuestionCount'] as num?)?.toInt() ?? (assignment == null ? enqueue.totalQuestionCount : enqueue.completedQuestionCount);
-    final total = (assignment?['totalQuestionCount'] as num?)?.toInt() ?? enqueue.totalQuestionCount;
-    final cumulativeOffset = (assignment?['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? enqueue.cumulativeOffsetQuestionCount;
-    final teacher = (assignment?['teacher'] as String?) ?? enqueue.teacher;
+    final completed = (assignment['completedQuestionCount'] as num?)?.toInt() ?? enqueue.completedQuestionCount;
+    final total = (assignment['totalQuestionCount'] as num?)?.toInt() ?? enqueue.totalQuestionCount;
+    final cumulativeOffset = (assignment['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? enqueue.cumulativeOffsetQuestionCount;
+    final teacher = (assignment['teacher'] as String?) ?? enqueue.teacher;
 
     controller.add(ProductionSessionData(
       assignmentId: enqueue.assignmentId,
@@ -145,14 +143,14 @@ Stream<ProductionSessionData> _streamProductionSession(SessionEnqueueResult enqu
     assignmentSnap = s;
     emit();
   }, onError: controller.addError);
-  final questionSetSub = questionSetStream.listen((s) {
-    questionSetSnap = s;
+  final questionsSub = questionsStream.listen((s) {
+    questionsSnap = s;
     emit();
   }, onError: controller.addError);
 
   controller.onCancel = () async {
     await assignmentSub.cancel();
-    await questionSetSub.cancel();
+    await questionsSub.cancel();
   };
 
   return controller.stream;

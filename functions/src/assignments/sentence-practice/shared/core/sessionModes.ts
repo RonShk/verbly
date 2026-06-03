@@ -1,5 +1,5 @@
-import {TranslationPrompts} from "../translation/prompts";
-import {ProductionPrompts} from "../production/prompts";
+import {TranslationPrompts} from "../../translation/prompts";
+import {ProductionPrompts} from "../../production/prompts";
 
 /** Sentence-practice session types that share the generation pipeline. */
 export type SessionType = "TRANSLATION" | "PRODUCTION";
@@ -25,8 +25,6 @@ export interface EvaluateDescriptions {
  */
 export interface SessionModeConfig {
   type: SessionType;
-  /** Firestore collection holding the question set docs for this mode. */
-  questionSetCollection: string;
   /** Field name the sentence is stored under (kept for client compatibility). */
   sentenceField: "sentenceInLearningLanguage" | "sentenceInNativeLanguage";
   /** Human-facing title returned to the client. */
@@ -54,7 +52,6 @@ const QUESTION_COUNT = 10;
 
 export const TRANSLATION_MODE: SessionModeConfig = {
   type: "TRANSLATION",
-  questionSetCollection: "translation_question_sets",
   sentenceField: "sentenceInLearningLanguage",
   assignmentTitle: "Translation Mode",
   questionCount: QUESTION_COUNT,
@@ -70,7 +67,6 @@ export const TRANSLATION_MODE: SessionModeConfig = {
 
 export const PRODUCTION_MODE: SessionModeConfig = {
   type: "PRODUCTION",
-  questionSetCollection: "production_question_sets",
   sentenceField: "sentenceInNativeLanguage",
   assignmentTitle: "Production Mode",
   questionCount: QUESTION_COUNT,

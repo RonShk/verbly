@@ -1,13 +1,11 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import {ThinkingLevel} from "@google/genai";
 import {z} from "zod";
-import {generateStructured} from "../../ai/geminiClient";
-import {updateAssignmentProgress} from "../../utils/assignmentProgress";
+import {generateStructured} from "../../../../../ai/geminiClient";
+import {updateAssignmentProgress} from "./assignmentProgress";
 import {persistEvaluatedQuestion} from "./persistEvaluatedQuestion";
-import {getModeConfig} from "./sessionModes";
-
-const db = admin.firestore();
+import {getModeConfig} from "../../core/sessionModes";
+import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -43,7 +41,7 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
     throw new functions.https.HttpsError("invalid-argument", "studentAnswer is required.");
   }
 
-  const assignmentRef = db.collection("user_todo_assignments").doc(assignmentId);
+  const assignmentRef = assignmentDocRef(assignmentId);
   const assignmentSnap = await assignmentRef.get();
   if (!assignmentSnap.exists) {
     throw new functions.https.HttpsError("not-found", "Assignment not found.");
@@ -55,19 +53,11 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
 
   const config = getModeConfig(assignment.type as string);
 
-  const questionSetId = assignment.questionSetId as string;
-  const questionSetRef = db.collection(config.questionSetCollection).doc(questionSetId);
-  const questionSetSnap = await questionSetRef.get();
-  if (!questionSetSnap.exists) {
-    throw new functions.https.HttpsError("not-found", "Question set not found.");
-  }
-
-  const questionSet = questionSetSnap.data()!;
-  const questions = questionSet.questions as Array<Record<string, unknown>>;
-  const question = questions[questionIndex];
-  if (!question) {
+  const questionSnap = await questionDocRef(assignmentRef, questionIndex).get();
+  if (!questionSnap.exists) {
     throw new functions.https.HttpsError("not-found", `Question at index ${questionIndex} not found.`);
   }
+  const question = questionSnap.data()!;
 
   const totalQuestionCount = (assignment.totalQuestionCount as number) ?? 0;
   let completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;
@@ -111,7 +101,7 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
   }
 
   const persistedAnswer = isSkipped ? SKIP_SENTINEL : studentAnswer;
-  await persistEvaluatedQuestion(questionSetRef, questionIndex, persistedAnswer, {
+  await persistEvaluatedQuestion(assignmentRef, questionIndex, persistedAnswer, {
     score,
     correctedVersion,
     correctedVersionSegments,
@@ -119,17 +109,7 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
     explanationStatus: "generating",
   });
 
-  const {assignmentCompleted} = await updateAssignmentProgress(
-    assignmentRef,
-    {
-      type: assignment.type as string,
-      teacher: assignment.teacher as string,
-      totalQuestionCount,
-      assignmentDate: assignment.assignmentDate as string | undefined,
-    },
-    userId,
-    completedQuestionCount
-  );
+  const {assignmentCompleted} = await updateAssignmentProgress(assignmentRef, totalQuestionCount, completedQuestionCount);
 
   return {
     score: score ?? 0,
