@@ -26,43 +26,19 @@
       ]
     },
     {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "due", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "state", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
+      "collectionGroup": "cards",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "state", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "due", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "firstLearnedAt", "order": "DESCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "lastFailureAt", "order": "DESCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "hardTag", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "vocab_cards",
-      "queryScope": "COLLECTION",
-      "fields": [ { "fieldPath": "userId", "order": "ASCENDING" }, { "fieldPath": "leechTag", "order": "ASCENDING" } ]
+      "collectionGroup": "cards",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "lastReview", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

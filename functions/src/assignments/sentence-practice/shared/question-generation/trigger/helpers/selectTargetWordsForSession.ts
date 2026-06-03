@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import {deckCardsRef} from "../../../../../../assignments/vocab/deck/paths";
 import {classifyCard, endOfUserDay, type ClassifiedCard} from "../../../../../../utils/vocabCardClassification";
 import {getRecentlyUsedWordKeys, normalizeWord} from "./recentSentencePracticeWords";
 
@@ -136,10 +137,10 @@ function weightedSampleTopN(candidates: ScoredCard[], quota: number): ScoredCard
 
 /**
  * Selects target words for a sentence session (translation/production) from
- * vocab_cards.
+ * student_vocab/{userId}/cards.
  *
  * High-level contract:
- * - Loads ALL of the user's vocab_cards in a single query, then classifies them
+ * - Loads ALL of the user's cards in a single query, then classifies them
  *   in memory the same way daily vocab does (`vocabCardClassification`).
  * - Hard-excludes words used in the user's recent translation/production
  *   sessions (cross-session variety), plus any explicit `excludeWordKeys`.
@@ -173,9 +174,9 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
   });
   */
 
-  const snap = await db.collection("vocab_cards").where("userId", "==", userId).get();
+  const snap = await deckCardsRef(db, userId).get();
   if (snap.empty) {
-    console.log("[selectTargetWordsForSession] no vocab_cards for user");
+    console.log("[selectTargetWordsForSession] no cards for user");
     return [];
   }
 

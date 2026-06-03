@@ -2,10 +2,8 @@ import type {Card} from "ts-fsrs";
 import {createEmptyCard, fsrs, Rating, State} from "ts-fsrs";
 import type {Timestamp} from "firebase-admin/firestore";
 
-/** Firestore vocab_cards document fields (FSRS + app fields). */
+/** Firestore student_vocab/{uid}/cards/{cardId} document fields. */
 export interface VocabCardDoc {
-  userId: string;
-  vocabListId: string;
   learningLanguageWord: string;
   englishWord: string;
   due: Timestamp;
@@ -24,9 +22,9 @@ export interface VocabCardDoc {
 const f = fsrs();
 
 /**
- * Builds an empty FSRS card and returns Firestore-ready fields for a new vocab_cards doc.
+ * Builds an empty FSRS card and returns Firestore-ready fields for a new card doc.
  */
-export function emptyVocabCardFields(now: Date, TimestampClass: { fromDate(d: Date): Timestamp }): Omit<VocabCardDoc, "userId" | "vocabListId" | "learningLanguageWord" | "englishWord" | "createdAt"> {
+export function emptyVocabCardFields(now: Date, TimestampClass: { fromDate(d: Date): Timestamp }): Omit<VocabCardDoc, "learningLanguageWord" | "englishWord" | "createdAt"> {
   const card = createEmptyCard(now);
   return {
     due: TimestampClass.fromDate(card.due),
@@ -43,7 +41,7 @@ export function emptyVocabCardFields(now: Date, TimestampClass: { fromDate(d: Da
 }
 
 /**
- * Converts a Firestore vocab_cards doc (with Timestamp) to a ts-fsrs Card (with Date).
+ * Converts a Firestore card doc (with Timestamp) to a ts-fsrs Card (with Date).
  */
 export function docToCard(doc: VocabCardDoc): Card {
   return {
@@ -62,9 +60,8 @@ export function docToCard(doc: VocabCardDoc): Card {
 
 /**
  * Converts a ts-fsrs Card and optional last_review to Firestore-update shape.
- * Uses Timestamp.fromDate for due and last_review.
  */
-export function cardToUpdate(card: Card, TimestampClass: { fromDate(d: Date): Timestamp }): Omit<VocabCardDoc, "userId" | "vocabListId" | "learningLanguageWord" | "englishWord" | "createdAt"> {
+export function cardToUpdate(card: Card, TimestampClass: { fromDate(d: Date): Timestamp }): Omit<VocabCardDoc, "learningLanguageWord" | "englishWord" | "createdAt"> {
   return {
     due: TimestampClass.fromDate(card.due),
     stability: card.stability,
@@ -85,10 +82,7 @@ export function toRating(rating: number): Rating {
   throw new Error("Invalid rating; expected 1-4 (Again/Hard/Good/Easy).");
 }
 
-/**
- * Returns the FSRS scheduler instance (default params).
- * Use f.repeat(card, now) for all options or f.next(card, now, grade) for one rating.
- */
+/** Returns the FSRS scheduler instance (default params). */
 export function getFSRS() {
   return f;
 }

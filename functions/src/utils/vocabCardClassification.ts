@@ -7,7 +7,7 @@ import type {DocumentSnapshot} from "firebase-admin/firestore";
  */
 export type CardCategory = "learning" | "new" | "dueReview" | "notDueReview" | "other";
 
-/** A vocab_cards doc parsed and classified in memory. */
+/** A student_vocab card doc parsed and classified in memory. */
 export interface ClassifiedCard {
   id: string;
   learningLanguageWord: string;
@@ -48,7 +48,7 @@ function toDateOrNull(raw: unknown): Date | null {
 }
 
 /**
- * Classifies a vocab_cards document the same way daily vocab does:
+ * Classifies a student_vocab card document the same way daily vocab does:
  * - `learning`: state 1 or 3 (Learning / Relearning)
  * - `new`: state 0
  * - `dueReview`: state 2 and due on/before end of the user's day
