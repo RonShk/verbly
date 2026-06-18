@@ -180,15 +180,11 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     return [];
   }
 
-  let excludedCount = 0;
   const scored: ScoredCard[] = [];
   for (const doc of snap.docs) {
     const card = classifyCard(doc, endOfDay);
     if (!card.learningLanguageWord || !card.englishWord) continue;
-    if (excludeKeys.has(wordKey(card)) || recentlyUsed.has(normalizeWord(card.learningLanguageWord))) {
-      excludedCount++;
-      continue;
-    }
+    if (excludeKeys.has(wordKey(card)) || recentlyUsed.has(normalizeWord(card.learningLanguageWord))) continue;
     const recentFailure = card.lastFailureAt != null && card.lastFailureAt >= failureCutoff;
     scored.push({card, score: scoreCard(card, recentFailure), recentFailure});
   }

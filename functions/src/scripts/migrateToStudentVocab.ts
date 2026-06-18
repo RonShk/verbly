@@ -47,7 +47,7 @@ async function migrateStudent(studentUid: string): Promise<void> {
   const tutorId = (studentSnap.data()?.teacherId as string | null | undefined) ?? null;
 
   let learningLanguage = "es";
-  let knownLanguage = "en";
+  const knownLanguage = "en";
   const firstListId = legacySnap.docs.map((d) => d.data().vocabListId as string | undefined).find(Boolean);
   if (firstListId) {
     const listSnap = await db.collection("vocab_lists").doc(firstListId).get();
