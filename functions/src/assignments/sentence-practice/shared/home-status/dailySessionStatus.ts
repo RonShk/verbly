@@ -2,16 +2,13 @@ import * as admin from "firebase-admin";
 import {Timestamp, type QueryDocumentSnapshot} from "firebase-admin/firestore";
 import {type SessionType} from "../core/sessionModes";
 import {ASSIGNMENTS_COLLECTION} from "../core/assignmentRefs";
+import {getTodayDateString} from "../../../../utils/localDate";
 
 export const DEFAULT_TOTAL = 10;
 
 export type CompletionStatus = "TODO" | "COMPLETED";
 
-/** Today's date (YYYY-MM-DD) in the client's local timezone. */
-export function getTodayDateString(utcOffsetMinutes: number): string {
-  const clientLocal = new Date(Date.now() + utcOffsetMinutes * 60_000);
-  return clientLocal.toISOString().substring(0, 10);
-}
+export {getTodayDateString};
 
 function createdAtMillis(doc: QueryDocumentSnapshot): number {
   const ts = doc.data().createdAt;

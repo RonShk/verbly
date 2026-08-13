@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
-import {type DocumentReference} from "firebase-admin/firestore";
+import {FieldValue, type DocumentReference} from "firebase-admin/firestore";
 import {z} from "zod";
+import {NO_VOCAB_STATUS} from "../../../core/generationStatus";
 import {generateStructuredStream} from "../../../../../../ai/geminiClient";
 import {selectTargetWordsForSession} from "./selectTargetWordsForSession";
 import {normalizeWord} from "./recentSentencePracticeWords";
@@ -36,7 +37,10 @@ export async function streamGenerateSessionQuestions(config: SessionModeConfig, 
 
     const words = await selectTargetWordsForSession(userId, {maxWords: 30, timezoneOffsetMinutes});
     if (words.length === 0) {
-      await assignmentRef.update({generationStatus: "failed", generationError: "No vocab words available. Add words before starting a session."});
+      // Terminal, not a failure: the student has no words to practise. "failed"
+      // would invite endless retries (enqueue re-triggers failed generations)
+      // that can only fail the same way.
+      await assignmentRef.update({generationStatus: NO_VOCAB_STATUS, generationError: FieldValue.delete()});
       return {generatedCount: 0};
     }
 

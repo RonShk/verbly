@@ -60,6 +60,14 @@ class _HomePageState extends ConsumerState<HomePage> {
   /// session page will enqueue again on open).
   void _prefetchSentenceModes() {
     if (_prefetchRequested || !mounted) return;
+
+    // A student whose tutor hasn't assigned any words has nothing to generate
+    // from. Vocab's daily state is already loaded here and knows this, so skip
+    // the prefetch entirely rather than asking the backend to work it out on
+    // every Home visit. Not latched: the moment words appear, prefetch resumes.
+    final vocab = ref.read(vocabSessionProvider).value;
+    if (vocab != null && vocab.deckIsEmpty) return;
+
     _prefetchRequested = true;
 
     final translation = ref.read(translationDailyProvider).value;
@@ -87,7 +95,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final vocabCache = ref.read(vocabSessionProvider).value;
     final hasTodayVocab = vocabCache != null && vocabCache.sessionDateKey == todayKey;
     if (!hasTodayVocab) {
-      ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
+      ref.read(vocabSessionProvider.notifier).loadIfNeeded();
     }
 
     ref.read(translationDailyProvider.notifier).loadIfNeeded();
@@ -103,8 +111,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _onMidnight() {
-    ref.read(vocabSessionProvider.notifier).clear();
-    ref.read(vocabSessionProvider.notifier).loadIfNeeded('daily-vocab');
+    ref.read(vocabSessionProvider.notifier).refresh();
     ref.read(translationDailyProvider.notifier).clear();
     ref.read(translationDailyProvider.notifier).loadIfNeeded();
     ref.read(productionDailyProvider.notifier).clear();
@@ -201,43 +208,37 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _addVocabCards({ required AsyncValue<VocabSessionState> vocabSession, required List<HomeAssignment> todoAssignments, required List<HomeCompletion> completed,}) {
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
     final cache = vocabSession.value;
-    final hasTodayCache = cache != null && cache.sessionDateKey == todayKey;
-    final totalCount = hasTodayCache ? cache.session.totalQuestionCount : 0;
-    final completedCount = hasTodayCache ? cache.completedQuestionCount : 0;
-    final cumulativeOffset = hasTodayCache ? cache.cumulativeOffsetQuestionCount : 0;
+    if (cache == null || cache.sessionDateKey != todayKey) return;
 
-    final isLoading = vocabSession.isLoading;
-    final hasTodayAndEmpty = hasTodayCache && cache.questions.isEmpty;
-    // A freshly-started "Continue review" wave (cumulativeOffset > 0) with
-    // zero in-wave progress should remain under COMPLETED until the user
-    // rates the first card; mirrors the T/P hideFromAssignmentsTabUntilFirstProgress flag.
-    final isContinueReviewIdle = hasTodayCache && cumulativeOffset > 0 && completedCount == 0 && cache.questions.isNotEmpty;
-    final showVocabCompleted = !isLoading && (hasTodayAndEmpty || isContinueReviewIdle);
-    final showVocabAssignment = !showVocabCompleted;
-
-    if (showVocabAssignment) {
+    // With no words assigned the backend has nothing to draw, so the wave comes
+    // back empty and would otherwise land under COMPLETED — reading as "done"
+    // for a student who never had anything to do, with a Continue Review button
+    // that just creates more empty waves. Keep the row tappable instead; the
+    // session page explains what's going on.
+    if (cache.deckIsEmpty || cache.completionStatus == AssignmentCompletionStatus.todo) {
       todoAssignments.add(
         HomeAssignment(
-          id: 'daily-vocab',
+          id: cache.assignmentId,
           type: 'VOCAB',
           teacher: '',
           dueDate: 'Today',
-          totalQuestionCount: totalCount,
-          completedQuestionCount: completedCount,
-          cumulativeOffsetQuestionCount: cumulativeOffset,
-          buttonLabel: completedCount > 0 ? 'Continue' : 'Start',
+          totalQuestionCount: cache.totalQuestionCount,
+          completedQuestionCount: cache.completedQuestionCount,
+          cumulativeOffsetQuestionCount: cache.cumulativeOffsetQuestionCount,
+          buttonLabel: cache.completedQuestionCount > 0 ? 'Continue' : 'Start',
         ),
       );
+      return;
     }
-    if (showVocabCompleted) {
-      // For Continue review-idle (loaded but unstarted), passing the
-      // assignmentId lets the button skip the prepare* step and go straight
-      // to the session.
-      completed.add(HomeCompletion(
-        type: 'VOCAB',
-        assignmentId: isContinueReviewIdle ? 'daily-vocab' : null,
-      ));
-    }
+
+    // COMPLETED covers two cases (as for T/P): the wave is fully answered, or
+    // it is a "Continue review" wave that hasn't been started yet. In the
+    // latter it still has cards, so passing the assignmentId lets the button
+    // skip the prepare* step and go straight to the session.
+    completed.add(HomeCompletion(
+      type: 'VOCAB',
+      assignmentId: cache.questions.isNotEmpty ? cache.assignmentId : null,
+    ));
   }
 
   void _addTranslationCards({
@@ -313,21 +314,23 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   /// Wires the "Continue review" button on a completed-section row.
   ///
-  /// Vocab: starts a new client-side wave (resets in-wave count, bumps
-  /// cumulative offset) and refetches the next batch of due cards.
-  ///
-  /// Translation/Production: if the row already has an assignmentId (a
-  /// wave-2+ todo that hasn't been started yet), navigates straight to the
-  /// session page. Otherwise, calls the `prepare*ContinueReview` callable
-  /// which creates a new wave-2 todo on the server, then navigates. AI
-  /// generation runs lazily inside the session page's `start*Session`.
+  /// All three modes work the same way: if the row already has an assignmentId
+  /// (a wave-2+ todo that hasn't been started yet), navigates straight to the
+  /// session page. Otherwise, calls the `prepare*ContinueReview` callable which
+  /// creates a new wave-2 todo on the server, then navigates. For T/P, AI
+  /// generation runs lazily inside the session page's `start*Session`; for
+  /// vocab the new wave's cards are drawn and persisted by the prepare call.
   VoidCallback? _onContinueCompleted(BuildContext context, HomeCompletion c) {
     switch (c.type) {
       case 'VOCAB':
         return () async {
-          await ref.read(vocabSessionProvider.notifier).startContinueReview('daily-vocab');
-          if (!context.mounted) return; 
-          context.go('/assignment/vocab/daily-vocab');
+          var assignmentId = c.assignmentId;
+          if (assignmentId == null || assignmentId.isEmpty) {
+            assignmentId = await ref.read(vocabSessionProvider.notifier).startContinueReview();
+            if (assignmentId.isEmpty) return;
+          }
+          if (!context.mounted) return;
+          context.go('/assignment/vocab/$assignmentId');
         };
       case 'TRANSLATION':
         return () async {
@@ -502,12 +505,11 @@ class _AssignmentCard extends StatelessWidget {
     final isContinueReviewWave = cumulativeOffsetQuestionCount > 0;
     final progressFraction = isContinueReviewWave ? 1.0 : (totalQuestionCount > 0 ? completedQuestionCount / totalQuestionCount : 0.0);
 
-    // Cumulative numerator for the label. For wave 1 we keep "on card N"
-    // semantics (completed+1 while at least one card remains) so a fresh
-    // start reads "1/15" not "0/15"; for wave 2+ the numerator is the
-    // straight cumulative count, so a freshly-started wave reads "15/15"
-    // and the first answer bumps it to "16/15".
-    final cumulativeNumerator = isContinueReviewWave ? cumulativeOffsetQuestionCount + completedQuestionCount : completedQuestionCount;
+    // Cumulative numerator for the label: what the user has completed, offset
+    // by earlier waves today. The session pages use the same expression, so
+    // the two screens always agree. Wave 1 starts at "0/15"; a freshly-started
+    // wave 2 reads "15/15" and the first answer bumps it to "16/15".
+    final cumulativeNumerator = cumulativeOffsetQuestionCount + completedQuestionCount;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),

@@ -6,6 +6,7 @@ import '../models/vocab_session_models.dart';
 import '../providers/vocab_session_provider.dart';
 import '../services/vocab_session_api_calls.dart';
 import '../theme/app_colors.dart';
+import '../widgets/practice_empty_state.dart';
 
 class VocabSessionPage extends ConsumerStatefulWidget {
   const VocabSessionPage({super.key, required this.assignmentId});
@@ -25,7 +26,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
+      ref.read(vocabSessionProvider.notifier).loadIfNeeded(assignmentId: widget.assignmentId);
     });
   }
 
@@ -36,8 +37,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
       _currentIndex = 0;
       _scheduledAutoHomeNav = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(vocabSessionProvider.notifier).clear();
-        ref.read(vocabSessionProvider.notifier).loadIfNeeded(widget.assignmentId);
+        ref.read(vocabSessionProvider.notifier).refresh(assignmentId: widget.assignmentId);
       });
     }
   }
@@ -74,7 +74,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () {
-                      ref.read(vocabSessionProvider.notifier).clear();
+                      ref.read(vocabSessionProvider.notifier).refresh(assignmentId: widget.assignmentId);
                     },
                     style: FilledButton.styleFrom(
                         backgroundColor: AppColors.button),
@@ -93,6 +93,13 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             final currentIndex = _currentIndex;
 
             if (questions.isEmpty || currentIndex >= questions.length) {
+              // Opened with nothing to do, rather than having just worked
+              // through the wave (completedQuestionCount == 0). Explain why
+              // instead of bouncing the user straight back to Home.
+              if (state.completedQuestionCount == 0) {
+                return state.deckIsEmpty ? const PracticeEmptyState.noWordsAssigned() : const PracticeEmptyState.nothingDueToday();
+              }
+
               // Match Production/Translation behavior: finishing the last item
               // returns the user to Home instead of showing an intermediate
               // completion screen.
@@ -112,14 +119,13 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             }
 
             final q = questions[currentIndex];
-            final total = session.totalQuestionCount;
-            // Cumulative label rule (matches Home and T/P):
-            //  - Wave 1 (offset == 0): keep "on card N" semantic (completed+1)
-            //    so the user reads "1/15" on the first card.
-            //  - Wave 2+ (offset > 0): straight cumulative, so a freshly
-            //    started wave reads "15/15" and bumps to "16/15" on first rate.
+            final total = state.totalQuestionCount;
+            // Cumulative label rule — the same one Home uses, so the two screens
+            // never disagree: the numerator is what the user has *completed*,
+            // offset by earlier waves today. Wave 1 starts at "0/15"; a freshly
+            // started wave 2 reads "15/15" and bumps to "16/15" on first rate.
             final isContinueReviewWave = state.cumulativeOffsetQuestionCount > 0;
-            final currentPosition = isContinueReviewWave ? state.cumulativeOffsetQuestionCount + state.completedQuestionCount : state.completedQuestionCount + 1;
+            final currentPosition = state.cumulativeOffsetQuestionCount + state.completedQuestionCount;
 
             return Column(
               children: [
@@ -156,7 +162,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     bool isContinueReviewWave,
   ) {
     // Bar rule: post–continue-review waves are always full; first wave fills
-    // proportionally to in-wave position.
+    // proportionally to the completed count — same as Home's card.
     final progress = isContinueReviewWave ? 1.0 : (totalCount > 0 ? (currentPosition / totalCount).clamp(0.0, 1.0) : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -383,17 +389,19 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     int rating,
   ) async {
     final state = ref.read(vocabSessionProvider).value;
+    if (state == null) return;
     final result = await recordVocabResponse(
+      assignmentId: state.assignmentId,
+      questionIndex: q.index,
       vocabCardId: q.vocabCardId,
       rating: rating,
-      totalQuestionCount: state?.session.totalQuestionCount ?? 0,
-      completedQuestionCount: (state?.completedQuestionCount ?? 0) + 1,
     );
     if (!context.mounted) return;
     ref.read(vocabSessionProvider.notifier).applyRating(
       result.stillDueToday,
       currentCardIndex,
       q,
+      completedQuestionCount: result.completedQuestionCount,
     );
     setState(() {
       _isFlipped = false;

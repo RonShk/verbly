@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../constants/foreign_characters.dart';
 import '../models/production_session_models.dart';
 import '../providers/production_session_provider.dart';
+import '../models/generation_status.dart';
 import '../services/sentence_practice_evaluation_api.dart';
 import '../theme/app_colors.dart';
+import '../widgets/practice_empty_state.dart';
 
 class ProductionSessionPage extends ConsumerStatefulWidget {
   const ProductionSessionPage({super.key, required this.assignmentId});
@@ -105,9 +107,16 @@ class _ProductionSessionPageState
             ),
           ),
           data: (session) {
+            // Nothing to practise and nothing to retry: the student has no
+            // vocab assigned. Checked before the loading/completed branches,
+            // which would otherwise spin forever on an empty question list.
+            if (session.generationStatus == GenerationStatus.noVocab) {
+              return const PracticeEmptyState.noWordsAssigned();
+            }
+
             final total = session.totalQuestionCount;
             final questions = session.questions;
-            final isGenerating = session.generationStatus == 'generating';
+            final isGenerating = session.generationStatus == GenerationStatus.generating;
             // Use the optimistic floor so a freshly-answered card never reappears
             // while the Firestore progress update is in flight.
             final serverCompleted = session.completedQuestionCount;
@@ -233,14 +242,12 @@ class _ProductionSessionPageState
     int currentCardIndex,
     int total,
   ) {
-    // Cumulative label rule (matches Vocab/Translation/Home):
-    //  - Wave 1 (offset == 0): "on card N" semantic so first card reads
-    //    "1/total".
-    //  - Wave 2+ (offset > 0): straight cumulative so a freshly-started
-    //    wave reads "total/total" and bumps to "(total+1)/total" on first
-    //    submit.
+    // Cumulative label rule — the same one Home uses, so the two screens never
+    // disagree: the numerator is what the user has *completed*, offset by
+    // earlier waves today. Wave 1 starts at "0/total"; a freshly-started wave 2
+    // reads "total/total" and bumps to "(total+1)/total" on first submit.
     final isContinueReviewWave = session.cumulativeOffsetQuestionCount > 0;
-    final displayIndex = isContinueReviewWave ? session.cumulativeOffsetQuestionCount + currentCardIndex : currentCardIndex + 1;
+    final displayIndex = session.cumulativeOffsetQuestionCount + currentCardIndex;
 
     return Column(
       children: [
@@ -282,7 +289,7 @@ class _ProductionSessionPageState
     bool isContinueReviewWave,
   ) {
     // Bar rule: post–continue-review waves are always full; first wave fills
-    // proportionally to in-wave position.
+    // proportionally to the completed count — same as Home's card.
     final progress = isContinueReviewWave ? 1.0 : (total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),

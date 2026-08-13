@@ -1,132 +1,162 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/assignment_completion_status.dart';
 import '../models/vocab_session_models.dart';
 import '../services/vocab_session_api_calls.dart';
 
-/// Immutable state for the vocab session: metadata + the working list of questions.
+/// Immutable state for the vocab session: metadata + the working list of cards.
+///
+/// This is an in-memory cache of a persisted `user_assignments` doc (type
+/// VOCAB), not the source of truth. Progress is written to Firestore on every
+/// rating, so a refresh or cold start rehydrates the same wave instead of
+/// drawing a new set of cards.
 class VocabSessionState {
   const VocabSessionState({
     required this.session,
     required this.questions,
     required this.sessionDateKey,
+    required this.completionStatus,
     this.completedQuestionCount = 0,
+    this.totalQuestionCount = 0,
     this.cumulativeOffsetQuestionCount = 0,
   });
 
   final VocabSessionData session;
+
+  /// Cards still to answer in this wave, in queue order. A card rated "Again"
+  /// moves to the back (server-side too), so it reappears later.
   final List<VocabQuestion> questions;
 
   /// Calendar date key (YYYY-MM-DD) in the user's local timezone for which this session was loaded.
   final String sessionDateKey;
+
+  /// Where Home should render this wave. COMPLETED covers both "fully answered"
+  /// and "a Continue review wave that hasn't been started yet".
+  final AssignmentCompletionStatus completionStatus;
 
   /// Number of questions completed in the current wave only (0..total). Used
   /// alongside [cumulativeOffsetQuestionCount] to compute display labels and
   /// in-wave progress.
   final int completedQuestionCount;
 
+  /// In-wave total (the number of cards drawn for this wave).
+  final int totalQuestionCount;
+
   /// Sum of questions completed in earlier waves today (0 for the first
-  /// daily wave). Bumped by [VocabSessionNotifier.startContinueReview] when
-  /// the user taps "Continue review" after finishing a wave. Used by:
+  /// daily wave). Set by the server when a "Continue review" wave is created.
+  /// Used by:
   ///   - Home / session cumulative labels (e.g. "16/15")
   ///   - The in-wave progress bar rule: any wave with offset > 0 stays 100%
   ///     full (per product spec).
   final int cumulativeOffsetQuestionCount;
+
+  /// Firestore id of the wave this state mirrors.
+  String get assignmentId => session.assignmentId;
+
+  /// True when the student's tutor hasn't assigned any vocab at all.
+  bool get deckIsEmpty => session.deckIsEmpty;
+
+  VocabSessionState copyWith({
+    List<VocabQuestion>? questions,
+    AssignmentCompletionStatus? completionStatus,
+    int? completedQuestionCount,
+  }) {
+    return VocabSessionState(
+      session: session,
+      questions: questions ?? this.questions,
+      sessionDateKey: sessionDateKey,
+      completionStatus: completionStatus ?? this.completionStatus,
+      completedQuestionCount: completedQuestionCount ?? this.completedQuestionCount,
+      totalQuestionCount: totalQuestionCount,
+      cumulativeOffsetQuestionCount: cumulativeOffsetQuestionCount,
+    );
+  }
+
+  factory VocabSessionState.fromSession(VocabSessionData session) {
+    return VocabSessionState(
+      session: session,
+      questions: List.from(session.questions),
+      sessionDateKey: DateTime.now().toLocal().toIso8601String().substring(0, 10),
+      completionStatus: session.completionStatus,
+      completedQuestionCount: session.completedQuestionCount,
+      totalQuestionCount: session.totalQuestionCount,
+      cumulativeOffsetQuestionCount: session.cumulativeOffsetQuestionCount,
+    );
+  }
 }
 
-/// Holds the day's session. Fetches once per assignment; list is updated when user rates.
+/// Holds the day's wave. Fetches once per wave; the list is updated locally as
+/// the user rates so navigating Home ↔ session costs no network call.
 /// Not autoDispose so returning from home keeps the same list.
 class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
   @override
   AsyncValue<VocabSessionState> build() => const AsyncValue.loading();
 
-  /// Load session if not already loaded for today. Refetch when cache is empty or for a different day.
-  Future<void> loadIfNeeded(String assignmentId) async {
+  /// Load the wave if it isn't already cached. Serves from memory when the
+  /// cache is for today and matches [assignmentId] (or none was requested);
+  /// otherwise fetches the persisted wave from the server.
+  Future<void> loadIfNeeded({String? assignmentId}) async {
     final current = state.value;
     final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    if (current != null && current.sessionDateKey == todayKey && current.questions.isNotEmpty) {
-      return;
-    }
+    final wantsCached = current != null &&
+        current.sessionDateKey == todayKey &&
+        (assignmentId == null || assignmentId.isEmpty || assignmentId == current.assignmentId);
+    if (wantsCached) return;
 
+    await _fetch(assignmentId: assignmentId);
+  }
+
+  /// Force a refetch of [assignmentId] (or today's wave), bypassing the cache.
+  Future<void> refresh({String? assignmentId}) => _fetch(assignmentId: assignmentId);
+
+  Future<void> _fetch({String? assignmentId}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-    
       final session = await getVocabSession(assignmentId: assignmentId);
-
-      return VocabSessionState(
-        session: session,
-        questions: List.from(session.questions),
-        sessionDateKey: todayKey,
-        completedQuestionCount: session.completedQuestionCount,
-      );
+      return VocabSessionState.fromSession(session);
     });
   }
 
-  /// Begin a new "Continue review" wave for vocab. Captures the cumulative
-  /// offset from the just-finished wave, then refetches the next batch of
-  /// due cards. Idempotent if called while a fresh wave is already loaded
-  /// and untouched.
+  /// Begin a new "Continue review" wave: asks the server to persist a fresh
+  /// batch of due cards (carrying today's cumulative offset) and caches it.
   ///
-  /// Should only be invoked when the prior wave is fully consumed (questions
-  /// list empty) — typically from Home's "Continue review" button or the
-  /// session page's "All done!" CTA.
-  Future<void> startContinueReview(String assignmentId) async {
-    final current = state.value;
-    final priorOffset = current?.cumulativeOffsetQuestionCount ?? 0;
-    final justFinishedCount = current?.completedQuestionCount ?? 0;
-    final newOffset = priorOffset + justFinishedCount;
-
+  /// Idempotent server-side — if an unfinished wave already exists for today it
+  /// is returned instead of creating another.
+  ///
+  /// Returns the new wave's id, or an empty string if the call failed — in
+  /// which case the previously cached wave is kept so Home doesn't lose its
+  /// vocab row.
+  Future<String> startContinueReview() async {
+    final previous = state;
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final session = await getVocabSession(assignmentId: assignmentId);
-      final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-      return VocabSessionState(
-        session: session,
-        questions: List.from(session.questions),
-        sessionDateKey: todayKey,
-        completedQuestionCount: session.completedQuestionCount,
-        cumulativeOffsetQuestionCount: newOffset,
-      );
+    final result = await AsyncValue.guard(() async {
+      final session = await prepareVocabContinueReview();
+      return VocabSessionState.fromSession(session);
     });
+    state = result.hasError ? previous : result;
+    return result.value?.assignmentId ?? '';
   }
 
   /// Called after rating. If [stillDueToday] is false, remove card at [index].
-  /// If true, move card at [index] to the end so it reappears later.
-  void applyRating(bool stillDueToday, int index, VocabQuestion q) {
+  /// If true, move card at [index] to the end so it reappears later — matching
+  /// what the server did to the persisted queue.
+  ///
+  /// [completedQuestionCount] is the server's count, which stays authoritative.
+  void applyRating(bool stillDueToday, int index, VocabQuestion q, {required int completedQuestionCount}) {
     final current = state.value;
     if (current == null || index < 0 || index >= current.questions.length) return;
     final list = List<VocabQuestion>.from(current.questions);
-    if (!stillDueToday) {
-      list.removeAt(index);
-    } else {
-      list.removeAt(index);
-      list.add(q);
-    }
+    list.removeAt(index);
+    if (stillDueToday) list.add(q);
 
-    final newCompleted = !stillDueToday ? current.completedQuestionCount + 1 : current.completedQuestionCount;
-
-    if (list.isEmpty) {
-      // User just finished the session; don't refetch (server might return more due cards and "reset").
-      state = AsyncValue.data(
-        VocabSessionState(
-          session: current.session,
-          questions: const [],
-          sessionDateKey: current.sessionDateKey,
-          completedQuestionCount: newCompleted,
-          cumulativeOffsetQuestionCount: current.cumulativeOffsetQuestionCount,
-        ),
-      );
-      return;
-    }
-
-    state = AsyncValue.data(
-      VocabSessionState(
-        session: current.session,
-        questions: list,
-        sessionDateKey: current.sessionDateKey,
-        completedQuestionCount: newCompleted,
-        cumulativeOffsetQuestionCount: current.cumulativeOffsetQuestionCount,
-      ),
-    );
+    // Finishing the wave leaves the list empty; don't refetch (the server would
+    // hand back the same finished wave, and a new wave is only started by an
+    // explicit "Continue review").
+    state = AsyncValue.data(current.copyWith(
+      questions: list,
+      completedQuestionCount: completedQuestionCount,
+      completionStatus: list.isEmpty ? AssignmentCompletionStatus.completed : AssignmentCompletionStatus.todo,
+    ));
   }
 
   /// Clear so next open refetches (e.g. new day).
