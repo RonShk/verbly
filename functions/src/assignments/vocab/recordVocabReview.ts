@@ -92,6 +92,25 @@ export async function recordVocabReview(userId: string, input: RecordVocabReview
 
     if (!cardSnap.exists) throw new VocabCardNotFoundError();
 
+    const assignmentData = assignmentSnap?.exists ? assignmentSnap.data() ?? {} : null;
+    const ownsAssignment = assignmentData !== null && assignmentData.userId === userId && assignmentData.type === VOCAB_TYPE;
+    const total = (assignmentData?.totalQuestionCount as number | undefined) ?? 0;
+    const storedCompleted = (assignmentData?.completedQuestionCount as number | undefined) ?? 0;
+    const cumulativeOffset = (assignmentData?.cumulativeOffsetQuestionCount as number | undefined) ?? 0;
+
+    // Do not advance FSRS again when the client retries a completed question.
+    // This check must happen before calculating and writing the next card state.
+    if (ownsAssignment && questionSnap?.exists && (questionSnap.data()?.status as string | undefined) === "DONE") {
+      return {
+        assignmentId,
+        completedQuestionCount: storedCompleted,
+        totalQuestionCount: total,
+        cumulativeOffsetQuestionCount: cumulativeOffset,
+        assignmentCompleted: total > 0 && storedCompleted >= total,
+        stillDueToday: false,
+      };
+    }
+
     const cardData = cardSnap.data() as VocabCardDoc;
     const oldState = typeof cardData.state === "number" ? cardData.state : 0;
     const {card: nextCard} = getFSRS().next(docToCard(cardData), now, toRating(rating) as Grade);
@@ -122,12 +141,6 @@ export async function recordVocabReview(userId: string, input: RecordVocabReview
       updatedAt: FieldValue.serverTimestamp(),
       ...stateCountDelta(oldState, nextCard.state as number),
     }, {merge: true});
-
-    const assignmentData = assignmentSnap?.exists ? assignmentSnap.data() ?? {} : null;
-    const ownsAssignment = assignmentData !== null && assignmentData.userId === userId && assignmentData.type === VOCAB_TYPE;
-    const total = (assignmentData?.totalQuestionCount as number | undefined) ?? 0;
-    const storedCompleted = (assignmentData?.completedQuestionCount as number | undefined) ?? 0;
-    const cumulativeOffset = (assignmentData?.cumulativeOffsetQuestionCount as number | undefined) ?? 0;
 
     const unchanged: RecordVocabReviewResult = {
       assignmentId,

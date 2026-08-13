@@ -6,6 +6,7 @@ import {updateAssignmentProgress} from "./assignmentProgress";
 import {persistEvaluatedQuestion} from "./persistEvaluatedQuestion";
 import {getModeConfig} from "../../core/sessionModes";
 import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
+import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -58,6 +59,18 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
     throw new functions.https.HttpsError("not-found", `Question at index ${questionIndex} not found.`);
   }
   const question = questionSnap.data()!;
+
+  // A completed question must not be replayed into Gemini. Apart from
+  // preventing duplicate grading, this makes retries safe after a client
+  // timeout where the server already persisted the answer.
+  const existingEvaluation = question.aiEvaluation as Record<string, unknown> | null | undefined;
+  if (question.studentAnswer !== null && question.studentAnswer !== undefined || existingEvaluation?.correctedVersion) {
+    throw new functions.https.HttpsError("already-exists", "This question has already been evaluated.");
+  }
+
+  // Reserve quota before Gemini so replaying one question cannot create
+  // unlimited billable evaluations.
+  await consumeAiQuota(context, "evaluation");
 
   const totalQuestionCount = (assignment.totalQuestionCount as number) ?? 0;
   let completedQuestionCount = (assignment.completedQuestionCount as number) ?? 0;

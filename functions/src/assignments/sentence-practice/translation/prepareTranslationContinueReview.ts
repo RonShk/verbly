@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import {prepareContinueReviewWave} from "../shared/home-status/dailySessionStatus";
+import {consumeDailyUserActionQuota} from "../../../utils/userActionRateLimit";
 
 /**
  * Creates (or returns) a "Continue review" wave for today's Translation. Each
@@ -12,6 +13,7 @@ export const prepareTranslationContinueReview = functions.https.onCall(async (da
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
+  await consumeDailyUserActionQuota(context, "translationContinueReview", 10);
   const timezoneOffsetMinutes = typeof data?.timezoneOffsetMinutes === "number" ? data.timezoneOffsetMinutes : -(new Date().getTimezoneOffset());
   return prepareContinueReviewWave(context.auth.uid, "TRANSLATION", timezoneOffsetMinutes);
 });

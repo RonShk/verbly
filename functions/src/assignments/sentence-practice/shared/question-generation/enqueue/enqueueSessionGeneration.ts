@@ -5,6 +5,7 @@ import {getModeConfig} from "../../core/sessionModes";
 import {assignmentDocRef} from "../../core/assignmentRefs";
 import {NO_VOCAB_STATUS} from "../../core/generationStatus";
 import {isDeckEmpty} from "../../../../vocab/deck/deckSize";
+import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
 
 /**
  * Fast, idempotent entry point for sentence-practice generation
@@ -40,6 +41,20 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
   // not on opening the session, not on a retry. Re-checked every call, so the
   // moment their tutor adds words the next enqueue generates normally.
   const deckEmpty = await isDeckEmpty(userId);
+
+  // The Firestore trigger performs Gemini generation after this state change.
+  // Reserve quota before allowing the transition to `generating`.
+  const currentAssignment = await assignmentRef.get();
+  if (!currentAssignment.exists) {
+    throw new functions.https.HttpsError("not-found", "Assignment not found.");
+  }
+  if ((currentAssignment.data()?.userId as string | undefined) !== userId) {
+    throw new functions.https.HttpsError("permission-denied", "Assignment does not belong to this user.");
+  }
+  const currentStatus = currentAssignment.data()?.generationStatus as string | undefined;
+  if (currentStatus !== "generating" && currentStatus !== "ready" && !deckEmpty) {
+    await consumeAiQuota(context, "generation");
+  }
 
   return admin.firestore().runTransaction(async (tx) => {
     const snap = await tx.get(assignmentRef);

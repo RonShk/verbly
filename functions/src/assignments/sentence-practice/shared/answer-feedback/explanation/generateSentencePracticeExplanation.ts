@@ -6,6 +6,7 @@ import {appendExplanationBullet, mergeQuestionEvaluation} from "./persistExplana
 import {getModeConfig} from "../../core/sessionModes";
 import {StreamingJsonArrayExtractor} from "../../core/streamingJsonArray";
 import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
+import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -71,6 +72,8 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
   if (evaluation.explanationStatus === "generating" && Array.isArray(existingBullets) && existingBullets.length > 0) {
     return {status: "generating"};
   }
+
+  await consumeAiQuota(context, "explanation");
 
   const studentAnswer = (question.studentAnswer as string | undefined) ?? "";
   const isSkipped = studentAnswer.trim() === SKIP_SENTINEL;
