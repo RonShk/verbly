@@ -62,6 +62,7 @@ export async function consumeAiQuota(context: functions.https.CallableContext, o
     }
 
     tx.set(usageRef, {
+      uid: context.auth!.uid,
       [operation]: current + 1,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});

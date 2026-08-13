@@ -24,6 +24,7 @@ export async function consumeDailyUserActionQuota(
       throw new functions.https.HttpsError("resource-exhausted", "Daily continue-review limit reached. Please try again tomorrow.");
     }
     tx.set(ref, {
+      uid: context.auth!.uid,
       [action]: current + 1,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, {merge: true});
