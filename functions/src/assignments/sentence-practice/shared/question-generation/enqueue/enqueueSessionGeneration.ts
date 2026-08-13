@@ -3,6 +3,8 @@ import * as admin from "firebase-admin";
 import {FieldValue} from "firebase-admin/firestore";
 import {getModeConfig} from "../../core/sessionModes";
 import {assignmentDocRef} from "../../core/assignmentRefs";
+import {NO_VOCAB_STATUS} from "../../core/generationStatus";
+import {isDeckEmpty} from "../../../../vocab/deck/deckSize";
 
 /**
  * Fast, idempotent entry point for sentence-practice generation
@@ -33,6 +35,12 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
 
   const assignmentRef = assignmentDocRef(assignmentId);
 
+  // Checked before the transaction (one aggregate read) so a student with no
+  // assigned words never starts the AI worker — not on Home's dwell prefetch,
+  // not on opening the session, not on a retry. Re-checked every call, so the
+  // moment their tutor adds words the next enqueue generates normally.
+  const deckEmpty = await isDeckEmpty(userId);
+
   return admin.firestore().runTransaction(async (tx) => {
     const snap = await tx.get(assignmentRef);
     if (!snap.exists) {
@@ -60,6 +68,17 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
     // Reuse an in-flight or finished generation; only a failed one regenerates.
     if (generationStatus === "generating" || generationStatus === "ready") {
       return {...meta, status: generationStatus};
+    }
+
+    // No words to practise: record the terminal state (so the client can show a
+    // friendly message rather than an error) and stop. Deliberately does not
+    // flip to "generating", which is what made every Home visit and every retry
+    // kick off another doomed generation.
+    if (deckEmpty) {
+      if (generationStatus !== NO_VOCAB_STATUS) {
+        tx.update(assignmentRef, {generationStatus: NO_VOCAB_STATUS, generationError: FieldValue.delete(), totalQuestionCount: 0});
+      }
+      return {...meta, totalQuestionCount: 0, status: NO_VOCAB_STATUS};
     }
 
     tx.update(assignmentRef, {

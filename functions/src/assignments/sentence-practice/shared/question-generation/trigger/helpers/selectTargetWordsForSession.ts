@@ -180,13 +180,30 @@ export async function selectTargetWordsForSession(userId: string, options: Selec
     return [];
   }
 
-  const scored: ScoredCard[] = [];
-  for (const doc of snap.docs) {
-    const card = classifyCard(doc, endOfDay);
-    if (!card.learningLanguageWord || !card.englishWord) continue;
-    if (excludeKeys.has(wordKey(card)) || recentlyUsed.has(normalizeWord(card.learningLanguageWord))) continue;
-    const recentFailure = card.lastFailureAt != null && card.lastFailureAt >= failureCutoff;
-    scored.push({card, score: scoreCard(card, recentFailure), recentFailure});
+  const collectScored = (applyRecentlyUsed: boolean): ScoredCard[] => {
+    const out: ScoredCard[] = [];
+    for (const doc of snap.docs) {
+      const card = classifyCard(doc, endOfDay);
+      if (!card.learningLanguageWord || !card.englishWord) continue;
+      if (excludeKeys.has(wordKey(card))) continue;
+      if (applyRecentlyUsed && recentlyUsed.has(normalizeWord(card.learningLanguageWord))) continue;
+      const recentFailure = card.lastFailureAt != null && card.lastFailureAt >= failureCutoff;
+      out.push({card, score: scoreCard(card, recentFailure), recentFailure});
+    }
+    return out;
+  };
+
+  // The recently-used exclusion is a freshness preference, not a requirement.
+  // A small deck can have every word used in the last few sessions, which used
+  // to leave nothing to generate from and fail the session. Fall back to the
+  // full deck (nearest-due words included, via the variety tier) so an empty
+  // result means only one thing: the student has no vocab at all.
+  let scored = collectScored(true);
+  if (scored.length === 0) {
+    scored = collectScored(false);
+    if (scored.length > 0) {
+      console.log("[selectTargetWordsForSession] every word was recently used; reusing the deck", {userId, deckSize: snap.size});
+    }
   }
 
   // Partition into tiers. Each card lands in exactly one tier (first match in
