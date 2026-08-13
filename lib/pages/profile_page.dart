@@ -1,14 +1,64 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/user_session_provider.dart';
+import '../services/auth/delete_account_service.dart' as account_service;
 import '../theme/app_colors.dart';
 
-class ProfilePage extends ConsumerWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends ConsumerState<ProfilePage> {
+  bool _deleting = false;
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account, vocabulary, practice history, and progress. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Delete account'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _deleting = true);
+    try {
+      await account_service.deleteAccount();
+      await ref.read(userSessionProvider).signOut();
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Could not delete your account. Please try again.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete your account. Please try again.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(firebaseUserProvider).value;
     final email = user?.email;
 
@@ -35,9 +85,7 @@ class ProfilePage extends ConsumerWidget {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.tonal(
-                    onPressed: () async {
-                      await ref.read(userSessionProvider).signOut();
-                    },
+                    onPressed: _deleting ? null : () async => ref.read(userSessionProvider).signOut(),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.danger.withValues(alpha: 0.15),
                       foregroundColor: AppColors.danger,
@@ -52,6 +100,29 @@ class ProfilePage extends ConsumerWidget {
                         Text('Sign out', style: TextStyle(fontWeight: FontWeight.w600)),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _deleting ? null : _confirmDeleteAccount,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: BorderSide(color: AppColors.danger.withValues(alpha: 0.65)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _deleting
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.delete_outline, size: 18),
+                              SizedBox(width: 8),
+                              Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
                   ),
                 ),
               ],
