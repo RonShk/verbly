@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/assignment_completion_status.dart';
@@ -21,6 +22,7 @@ class ProductionDailyState {
     required this.totalQuestionCount,
     required this.cumulativeOffsetQuestionCount,
     required this.sessionDateKey,
+    required this.userId,
   });
 
   final AssignmentCompletionStatus completionStatus;
@@ -35,6 +37,7 @@ class ProductionDailyState {
   /// offset > 0).
   final int cumulativeOffsetQuestionCount;
   final String sessionDateKey;
+  final String userId;
 }
 
 /// Home-level notifier for today's Production assignment status.
@@ -42,15 +45,22 @@ class ProductionDailyState {
 /// Calls the stub-only `getProductionSession` callable; does NOT hydrate
 /// questions. Questions are hydrated only via [productionSessionStreamProvider]
 /// when the user taps Start/Continue.
-class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>> {
+class ProductionDailyNotifier
+    extends Notifier<AsyncValue<ProductionDailyState>> {
   @override
   AsyncValue<ProductionDailyState> build() => const AsyncValue.loading();
 
   /// Fetch today's completion status/counts. Skipped if already cached for today.
   Future<void> loadIfNeeded() async {
     final current = state.value;
-    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    if (current != null && current.sessionDateKey == todayKey) {
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(
+      0,
+      10,
+    );
+    if (current != null &&
+        current.sessionDateKey == todayKey &&
+        current.userId == userId) {
       return;
     }
 
@@ -65,6 +75,7 @@ class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>>
         totalQuestionCount: dto.totalQuestionCount,
         cumulativeOffsetQuestionCount: dto.cumulativeOffsetQuestionCount,
         sessionDateKey: todayKey,
+        userId: userId,
       );
     });
   }
@@ -78,8 +89,8 @@ class ProductionDailyNotifier extends Notifier<AsyncValue<ProductionDailyState>>
 
 final productionDailyProvider =
     NotifierProvider<ProductionDailyNotifier, AsyncValue<ProductionDailyState>>(
-  ProductionDailyNotifier.new,
-);
+      ProductionDailyNotifier.new,
+    );
 
 /// Family keyed by `assignmentId` that streams a Production session.
 ///
@@ -91,18 +102,25 @@ final productionDailyProvider =
 ///
 /// This lets the session page show question 1 the moment it streams in, rather
 /// than blocking until all questions exist.
-final productionSessionStreamProvider =
-    StreamProvider.autoDispose.family<ProductionSessionData, String>(
-  (ref, assignmentId) async* {
-    final enqueue = await enqueueSessionGeneration(assignmentId: assignmentId);
-    yield* _streamProductionSession(enqueue);
-  },
-);
+final productionSessionStreamProvider = StreamProvider.autoDispose
+    .family<ProductionSessionData, String>((ref, assignmentId) async* {
+      final enqueue = await enqueueSessionGeneration(
+        assignmentId: assignmentId,
+      );
+      yield* _streamProductionSession(enqueue);
+    });
 
-Stream<ProductionSessionData> _streamProductionSession(SessionEnqueueResult enqueue) {
-  final assignmentRef = FirebaseFirestore.instance.collection('user_assignments').doc(enqueue.assignmentId);
+Stream<ProductionSessionData> _streamProductionSession(
+  SessionEnqueueResult enqueue,
+) {
+  final assignmentRef = FirebaseFirestore.instance
+      .collection('user_assignments')
+      .doc(enqueue.assignmentId);
   final assignmentStream = assignmentRef.snapshots();
-  final questionsStream = assignmentRef.collection('questions').orderBy('index').snapshots();
+  final questionsStream = assignmentRef
+      .collection('questions')
+      .orderBy('index')
+      .snapshots();
 
   final controller = StreamController<ProductionSessionData>();
   DocumentSnapshot<Map<String, dynamic>>? assignmentSnap;
@@ -113,30 +131,47 @@ Stream<ProductionSessionData> _streamProductionSession(SessionEnqueueResult enqu
     final assignment = assignmentSnap!.data();
     if (assignment == null) return;
 
-    final status = (assignment['generationStatus'] as String?) ?? enqueue.status;
+    final status =
+        (assignment['generationStatus'] as String?) ?? enqueue.status;
     if (status == 'failed') {
-      controller.addError(Exception((assignment['generationError'] as String?) ?? 'Generation failed.'));
+      controller.addError(
+        Exception(
+          (assignment['generationError'] as String?) ?? 'Generation failed.',
+        ),
+      );
       return;
     }
 
-    final questions = (questionsSnap?.docs ?? const []).map((d) => ProductionQuestion.fromJson(d.data())).toList()..sort((a, b) => a.index.compareTo(b.index));
+    final questions =
+        (questionsSnap?.docs ?? const [])
+            .map((d) => ProductionQuestion.fromJson(d.data()))
+            .toList()
+          ..sort((a, b) => a.index.compareTo(b.index));
 
-    final completed = (assignment['completedQuestionCount'] as num?)?.toInt() ?? enqueue.completedQuestionCount;
-    final total = (assignment['totalQuestionCount'] as num?)?.toInt() ?? enqueue.totalQuestionCount;
-    final cumulativeOffset = (assignment['cumulativeOffsetQuestionCount'] as num?)?.toInt() ?? enqueue.cumulativeOffsetQuestionCount;
+    final completed =
+        (assignment['completedQuestionCount'] as num?)?.toInt() ??
+        enqueue.completedQuestionCount;
+    final total =
+        (assignment['totalQuestionCount'] as num?)?.toInt() ??
+        enqueue.totalQuestionCount;
+    final cumulativeOffset =
+        (assignment['cumulativeOffsetQuestionCount'] as num?)?.toInt() ??
+        enqueue.cumulativeOffsetQuestionCount;
     final teacher = (assignment['teacher'] as String?) ?? enqueue.teacher;
 
-    controller.add(ProductionSessionData(
-      assignmentId: enqueue.assignmentId,
-      type: enqueue.type,
-      assignmentTitle: enqueue.assignmentTitle,
-      teacher: teacher,
-      totalQuestionCount: total,
-      completedQuestionCount: completed,
-      cumulativeOffsetQuestionCount: cumulativeOffset,
-      questions: questions,
-      generationStatus: status,
-    ));
+    controller.add(
+      ProductionSessionData(
+        assignmentId: enqueue.assignmentId,
+        type: enqueue.type,
+        assignmentTitle: enqueue.assignmentTitle,
+        teacher: teacher,
+        totalQuestionCount: total,
+        completedQuestionCount: completed,
+        cumulativeOffsetQuestionCount: cumulativeOffset,
+        questions: questions,
+        generationStatus: status,
+      ),
+    );
   }
 
   final assignmentSub = assignmentStream.listen((s) {

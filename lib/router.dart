@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/student_onboarding_page.dart';
 import 'pages/production_session_page.dart';
 import 'pages/translation_session_page.dart';
 import 'pages/vocab_session_page.dart';
@@ -39,47 +40,45 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/login',
-        pageBuilder: (context, state) => NoTransitionPage(
-          key: state.pageKey,
-          child: const LoginPage(),
-        ),
+        pageBuilder: (context, state) =>
+            NoTransitionPage(key: state.pageKey, child: const LoginPage()),
       ),
-      GoRoute(
-        path: '/',
-        redirect: (context, state) => '/home',
-      ),
-      GoRoute(
-        path: '/assignment/:type/:id',
-        pageBuilder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          final type = state.pathParameters['type'] ?? '';
-          final Widget page = switch (type) {
-            'vocab' => VocabSessionPage(assignmentId: id),
-            'translation' => TranslationSessionPage(assignmentId: id),
-            'production' => ProductionSessionPage(assignmentId: id),
-            _ => VocabSessionPage(assignmentId: id),
-          };
-          return NoTransitionPage(key: state.pageKey, child: page);
-        },
-      ),
+      GoRoute(path: '/', redirect: (context, state) => '/home'),
       ShellRoute(
-        builder: (context, state, child) => MainShell(
-          currentPath: state.uri.path,
-          child: child,
-        ),
+        builder: (context, state, child) =>
+            MainShell(currentPath: state.uri.path, child: child),
         routes: [
           GoRoute(
+            path: '/assignment/:type/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id'] ?? '';
+              final type = state.pathParameters['type'] ?? '';
+              final Widget page = switch (type) {
+                'vocab' => VocabSessionPage(assignmentId: id),
+                'translation' => TranslationSessionPage(assignmentId: id),
+                'production' => ProductionSessionPage(assignmentId: id),
+                _ => VocabSessionPage(assignmentId: id),
+              };
+              return NoTransitionPage(key: state.pageKey, child: page);
+            },
+          ),
+          GoRoute(
             path: '/home',
-            pageBuilder: (context, state) => NoTransitionPage(
-              key: state.pageKey,
-              child: const HomePage(),
-            ),
+            pageBuilder: (context, state) =>
+                NoTransitionPage(key: state.pageKey, child: const HomePage()),
           ),
           GoRoute(
             path: '/profile',
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
               child: const ProfilePage(),
+            ),
+          ),
+          GoRoute(
+            path: '/onboarding',
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const StudentConnectionPage(),
             ),
           ),
         ],

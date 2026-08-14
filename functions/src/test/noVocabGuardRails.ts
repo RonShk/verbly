@@ -17,7 +17,7 @@
 import * as admin from "firebase-admin";
 import {Timestamp} from "firebase-admin/firestore";
 import functionsTest from "firebase-functions-test";
-import {resolveDailySessionStatus} from "../assignments/sentence-practice/shared/home-status/dailySessionStatus";
+import {getTodayDateString, prepareContinueReviewWave, resolveDailySessionStatus} from "../assignments/sentence-practice/shared/home-status/dailySessionStatus";
 import {selectTargetWordsForSession} from "../assignments/sentence-practice/shared/question-generation/trigger/helpers/selectTargetWordsForSession";
 import {NO_VOCAB_STATUS} from "../assignments/sentence-practice/shared/core/generationStatus";
 import {resolveTodayVocabSession} from "../assignments/vocab/dailyVocabAssignment";
@@ -137,6 +137,15 @@ async function main(): Promise<void> {
   check("enqueue leaves no_vocab behind", resumed.status === "generating", resumed.status);
   const afterResume = (await assignmentRef.get()).data() ?? {};
   check("assignment flips to generating", afterResume.generationStatus === "generating", afterResume.generationStatus);
+
+  console.log("\n6. Failed generation reuses the existing assignment");
+  await assignmentRef.update({generationStatus: "failed", completionStatus: "COMPLETED", completedQuestionCount: 0});
+  const retryStatus = await resolveDailySessionStatus(USER_ID, "TRANSLATION", TZ_OFFSET);
+  check("failed assignment is returned for retry", retryStatus.assignmentId === stub.assignmentId, retryStatus.assignmentId);
+  const retryWave = await prepareContinueReviewWave(USER_ID, "TRANSLATION", TZ_OFFSET);
+  check("continue review reuses failed assignment", retryWave.assignmentId === stub.assignmentId, retryWave.assignmentId);
+  const assignmentCount = (await db.collection("user_assignments").where("userId", "==", USER_ID).where("type", "==", "TRANSLATION").where("assignmentDate", "==", getTodayDateString(TZ_OFFSET)).get()).size;
+  check("no extra failed stub is created", assignmentCount === 1, assignmentCount);
 
   testEnv.cleanup();
   console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

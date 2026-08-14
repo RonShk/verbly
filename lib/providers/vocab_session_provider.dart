@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/assignment_completion_status.dart';
@@ -15,6 +16,7 @@ class VocabSessionState {
     required this.session,
     required this.questions,
     required this.sessionDateKey,
+    required this.userId,
     required this.completionStatus,
     this.completedQuestionCount = 0,
     this.totalQuestionCount = 0,
@@ -29,6 +31,10 @@ class VocabSessionState {
 
   /// Calendar date key (YYYY-MM-DD) in the user's local timezone for which this session was loaded.
   final String sessionDateKey;
+
+  /// Firebase UID that owns the cached session. This prevents an account
+  /// switch from reusing the previous student's in-memory wave.
+  final String userId;
 
   /// Where Home should render this wave. COMPLETED covers both "fully answered"
   /// and "a Continue review wave that hasn't been started yet".
@@ -65,8 +71,10 @@ class VocabSessionState {
       session: session,
       questions: questions ?? this.questions,
       sessionDateKey: sessionDateKey,
+      userId: userId,
       completionStatus: completionStatus ?? this.completionStatus,
-      completedQuestionCount: completedQuestionCount ?? this.completedQuestionCount,
+      completedQuestionCount:
+          completedQuestionCount ?? this.completedQuestionCount,
       totalQuestionCount: totalQuestionCount,
       cumulativeOffsetQuestionCount: cumulativeOffsetQuestionCount,
     );
@@ -76,7 +84,11 @@ class VocabSessionState {
     return VocabSessionState(
       session: session,
       questions: List.from(session.questions),
-      sessionDateKey: DateTime.now().toLocal().toIso8601String().substring(0, 10),
+      sessionDateKey: DateTime.now().toLocal().toIso8601String().substring(
+        0,
+        10,
+      ),
+      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
       completionStatus: session.completionStatus,
       completedQuestionCount: session.completedQuestionCount,
       totalQuestionCount: session.totalQuestionCount,
@@ -97,17 +109,26 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
   /// otherwise fetches the persisted wave from the server.
   Future<void> loadIfNeeded({String? assignmentId}) async {
     final current = state.value;
-    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
-    final wantsCached = current != null &&
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(
+      0,
+      10,
+    );
+    final wantsCached =
+        current != null &&
         current.sessionDateKey == todayKey &&
-        (assignmentId == null || assignmentId.isEmpty || assignmentId == current.assignmentId);
+        current.userId == userId &&
+        (assignmentId == null ||
+            assignmentId.isEmpty ||
+            assignmentId == current.assignmentId);
     if (wantsCached) return;
 
     await _fetch(assignmentId: assignmentId);
   }
 
   /// Force a refetch of [assignmentId] (or today's wave), bypassing the cache.
-  Future<void> refresh({String? assignmentId}) => _fetch(assignmentId: assignmentId);
+  Future<void> refresh({String? assignmentId}) =>
+      _fetch(assignmentId: assignmentId);
 
   Future<void> _fetch({String? assignmentId}) async {
     state = const AsyncValue.loading();
@@ -142,9 +163,16 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
   /// what the server did to the persisted queue.
   ///
   /// [completedQuestionCount] is the server's count, which stays authoritative.
-  void applyRating(bool stillDueToday, int index, VocabQuestion q, {required int completedQuestionCount}) {
+  void applyRating(
+    bool stillDueToday,
+    int index,
+    VocabQuestion q, {
+    required int completedQuestionCount,
+  }) {
     final current = state.value;
-    if (current == null || index < 0 || index >= current.questions.length) return;
+    if (current == null || index < 0 || index >= current.questions.length) {
+      return;
+    }
     final list = List<VocabQuestion>.from(current.questions);
     list.removeAt(index);
     if (stillDueToday) list.add(q);
@@ -152,11 +180,15 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
     // Finishing the wave leaves the list empty; don't refetch (the server would
     // hand back the same finished wave, and a new wave is only started by an
     // explicit "Continue review").
-    state = AsyncValue.data(current.copyWith(
-      questions: list,
-      completedQuestionCount: completedQuestionCount,
-      completionStatus: list.isEmpty ? AssignmentCompletionStatus.completed : AssignmentCompletionStatus.todo,
-    ));
+    state = AsyncValue.data(
+      current.copyWith(
+        questions: list,
+        completedQuestionCount: completedQuestionCount,
+        completionStatus: list.isEmpty
+            ? AssignmentCompletionStatus.completed
+            : AssignmentCompletionStatus.todo,
+      ),
+    );
   }
 
   /// Clear so next open refetches (e.g. new day).
@@ -165,6 +197,7 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
   }
 }
 
-final vocabSessionProvider = NotifierProvider<VocabSessionNotifier, AsyncValue<VocabSessionState>>(
-  VocabSessionNotifier.new,
-);
+final vocabSessionProvider =
+    NotifierProvider<VocabSessionNotifier, AsyncValue<VocabSessionState>>(
+      VocabSessionNotifier.new,
+    );
