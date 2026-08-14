@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import * as functions from "firebase-functions/v1";
 
 export const createStudentDoc = functions.https.onCall(async (_data, context) => {
@@ -12,7 +13,7 @@ export const createStudentDoc = functions.https.onCall(async (_data, context) =>
     const existing = await tx.get(studentRef);
     if (existing.exists) return;
     tx.set(studentRef, {
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       displayName: token.name ?? null,
       email: token.email ?? null,
       teacherId: null,

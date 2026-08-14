@@ -9,6 +9,7 @@ setGlobalOptions({maxInstances: 10});
 // Export all functions from their respective modules.
 export {createStudentDoc} from "./triggers/createStudentDoc";
 export {deleteAccount} from "./auth/deleteAccount";
+export {acceptStudentInvite} from "./auth/acceptStudentInvite";
 export {getVocabSession} from "./assignments/vocab/getVocabSession";
 export {recordVocabResponse} from "./assignments/vocab/recordVocabResponse";
 export {prepareVocabContinueReview} from "./assignments/vocab/prepareVocabContinueReview";

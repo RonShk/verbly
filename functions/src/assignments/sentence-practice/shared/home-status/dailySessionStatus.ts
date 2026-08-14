@@ -15,6 +15,16 @@ function createdAtMillis(doc: QueryDocumentSnapshot): number {
   return ts instanceof Timestamp ? ts.toMillis() : 0;
 }
 
+/**
+ * A failed generation is still the same daily assignment, even if an older
+ * client or recovery path marked its completion status as COMPLETED. Reuse it
+ * while it has no student progress instead of creating another stub.
+ */
+function retryableGenerationDoc(doc: QueryDocumentSnapshot): boolean {
+  const data = doc.data();
+  return data.generationStatus === "failed" && ((data.completedQuestionCount as number | undefined) ?? 0) === 0;
+}
+
 /** Shape returned to the client for a daily sentence-practice status. */
 export interface DailySessionStatus {
   completionStatus: CompletionStatus;
@@ -46,6 +56,24 @@ export async function resolveDailySessionStatus(userId: string, type: SessionTyp
     .where("type", "==", type)
     .where("assignmentDate", "==", todayStr)
     .get();
+
+  // Prefer an existing failed generation over creating/resolving another
+  // assignment. This keeps retries attached to the same stub and prevents a
+  // repeated AI failure from producing an ever-growing set of documents.
+  const retryable = snap.docs.filter(retryableGenerationDoc).sort((a, b) => createdAtMillis(b) - createdAtMillis(a));
+  if (retryable.length > 0) {
+    const doc = retryable[0];
+    const d = doc.data();
+    return {
+      completionStatus: "TODO",
+      assignmentId: doc.id,
+      type,
+      teacher: (d.teacher as string) ?? "AI Generated",
+      completedQuestionCount: 0,
+      totalQuestionCount: (d.totalQuestionCount as number) ?? DEFAULT_TOTAL,
+      cumulativeOffsetQuestionCount: (d.cumulativeOffsetQuestionCount as number | undefined) ?? 0,
+    };
+  }
 
   const activeDocs = snap.docs.filter((d) => d.data().completionStatus !== "COMPLETED");
   const completedDocs = snap.docs.filter((d) => d.data().completionStatus === "COMPLETED");
@@ -122,6 +150,20 @@ export async function prepareContinueReviewWave(userId: string, type: SessionTyp
     .where("type", "==", type)
     .where("assignmentDate", "==", todayStr)
     .get();
+
+  // Retry the failed assignment in place. Do this independently of
+  // completionStatus because failed stubs from older flows may have been
+  // marked COMPLETED despite having zero answered questions.
+  const retryable = snap.docs.filter(retryableGenerationDoc).sort((a, b) => createdAtMillis(b) - createdAtMillis(a));
+  if (retryable.length > 0) {
+    const doc = retryable[0];
+    const d = doc.data();
+    return {
+      assignmentId: doc.id,
+      cumulativeOffsetQuestionCount: (d.cumulativeOffsetQuestionCount as number | undefined) ?? 0,
+      totalQuestionCount: (d.totalQuestionCount as number | undefined) ?? DEFAULT_TOTAL,
+    };
+  }
 
   const activeDoc = snap.docs.find((d) => d.data().completionStatus !== "COMPLETED");
   if (activeDoc) {
