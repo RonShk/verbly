@@ -104,6 +104,19 @@ final productionDailyProvider =
 /// than blocking until all questions exist.
 final productionSessionStreamProvider = StreamProvider.autoDispose
     .family<ProductionSessionData, String>((ref, assignmentId) async* {
+      // Emit immediately so the destination page can render its skeleton while
+      // the callable enqueues/generates the actual questions.
+      yield ProductionSessionData(
+        assignmentId: assignmentId,
+        type: 'PRODUCTION',
+        assignmentTitle: 'Production practice',
+        teacher: '',
+        totalQuestionCount: 0,
+        completedQuestionCount: 0,
+        cumulativeOffsetQuestionCount: 0,
+        questions: const [],
+        generationStatus: 'generating',
+      );
       final enqueue = await enqueueSessionGeneration(
         assignmentId: assignmentId,
       );

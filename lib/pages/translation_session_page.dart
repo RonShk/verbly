@@ -11,6 +11,7 @@ import '../models/generation_status.dart';
 import '../services/sentence_practice_evaluation_api.dart';
 import '../theme/app_colors.dart';
 import '../widgets/practice_empty_state.dart';
+import '../widgets/practice_session_skeleton.dart';
 
 class TranslationSessionPage extends ConsumerStatefulWidget {
   const TranslationSessionPage({super.key, required this.assignmentId});
@@ -18,13 +19,16 @@ class TranslationSessionPage extends ConsumerStatefulWidget {
   final String assignmentId;
 
   @override
-  ConsumerState<TranslationSessionPage> createState() => _TranslationSessionPageState();
+  ConsumerState<TranslationSessionPage> createState() =>
+      _TranslationSessionPageState();
 }
 
-class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage> {
+class _TranslationSessionPageState
+    extends ConsumerState<TranslationSessionPage> {
   final _answerController = TextEditingController();
   final _answerFocusNode = FocusNode();
   bool _isSubmitting = false;
+  bool _isFeedbackLoading = false;
   SentencePracticePhase1Result? _phase1Result;
   String? _submittedAnswer;
 
@@ -68,13 +72,22 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(translationSessionStreamProvider(widget.assignmentId));
+    final daily = ref.watch(translationDailyProvider).value;
+    final sessionAsync = ref.watch(
+      translationSessionStreamProvider(widget.assignmentId),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: sessionAsync.when(
-          loading: () => _buildLoadingView(context),
+          loading: () => PracticeSessionSkeleton(
+            modeLabel: 'TRANSLATION MODE',
+            title: 'Translation practice',
+            currentProgress: daily?.completedQuestionCount ?? 0,
+            totalProgress: daily?.totalQuestionCount ?? 0,
+            cumulativeOffset: daily?.cumulativeOffsetQuestionCount ?? 0,
+          ),
           error: (err, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -90,14 +103,17 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                   Text(
                     err.toString(),
                     style: const TextStyle(
-                        color: AppColors.navbarInactive, fontSize: 12),
+                      color: AppColors.navbarInactive,
+                      fontSize: 12,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _refreshSession,
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.button),
+                      backgroundColor: AppColors.button,
+                    ),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -114,11 +130,34 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
             final total = session.totalQuestionCount;
             final questions = session.questions;
-            final isGenerating = session.generationStatus == GenerationStatus.generating;
+            final answeredQuestion =
+                _answeredQuestionIndex != null &&
+                    _answeredQuestionIndex! < questions.length
+                ? questions[_answeredQuestionIndex!]
+                : null;
+            if (_isFeedbackLoading) {
+              return _buildFeedbackLoadingView(context, answeredQuestion);
+            }
+
+            final isGenerating =
+                session.generationStatus == GenerationStatus.generating;
             // Use the optimistic floor so a freshly-answered card never reappears
             // while the Firestore progress update is in flight.
             final serverCompleted = session.completedQuestionCount;
-            final currentCardIndex = serverCompleted > _answeredCount ? serverCompleted : _answeredCount;
+            final currentCardIndex = serverCompleted > _answeredCount
+                ? serverCompleted
+                : _answeredCount;
+
+            if (_phase1Result != null && answeredQuestion != null) {
+              return _buildFeedbackView(
+                context,
+                answeredQuestion,
+                _phase1Result!,
+                _submittedAnswer ?? '',
+                _answeredQuestionIndex ?? currentCardIndex,
+                total,
+              );
+            }
 
             // The whole wave has been answered.
             if (total > 0 && currentCardIndex >= total) {
@@ -128,7 +167,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             // still running, otherwise fall back to the completed view.
             if (currentCardIndex >= questions.length) {
               if (isGenerating || questions.isEmpty) {
-                return _buildLoadingView(context);
+                return _buildGeneratingView(context, session, daily);
               }
               return _buildCompletedView(context);
             }
@@ -137,7 +176,9 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
             if (_phase1Result != null) {
               final answeredIndex = _answeredQuestionIndex ?? currentCardIndex;
-              final answeredQ = answeredIndex < questions.length ? questions[answeredIndex] : q;
+              final answeredQ = answeredIndex < questions.length
+                  ? questions[answeredIndex]
+                  : q;
               return _buildFeedbackView(
                 context,
                 answeredQ,
@@ -162,39 +203,40 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     );
   }
 
-  /// Loading view shown while AI generation is in progress on the backend.
-  /// Includes an X close button so the user can return to Home; the Cloud
-  /// Function continues running and persists its result regardless.
-  Widget _buildLoadingView(BuildContext context) {
-    return Stack(
+  Widget _buildGeneratingView(
+    BuildContext context,
+    TranslationSessionData session,
+    TranslationDailyState? daily,
+  ) {
+    return PracticeSessionSkeleton(
+      modeLabel: 'TRANSLATION MODE',
+      title: session.assignmentTitle.isEmpty
+          ? 'Translation practice'
+          : session.assignmentTitle,
+      currentProgress: session.totalQuestionCount > 0
+          ? session.completedQuestionCount
+          : daily?.completedQuestionCount ?? 0,
+      totalProgress: session.totalQuestionCount > 0
+          ? session.totalQuestionCount
+          : daily?.totalQuestionCount ?? 0,
+      cumulativeOffset: session.totalQuestionCount > 0
+          ? session.cumulativeOffsetQuestionCount
+          : daily?.cumulativeOffsetQuestionCount ?? 0,
+    );
+  }
+
+  Widget _buildFeedbackLoadingView(
+    BuildContext context,
+    TranslationQuestion? question,
+  ) {
+    return Column(
       children: [
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(color: AppColors.blueHighlighted),
-              const SizedBox(height: 24),
-              const Text(
-                'We are generating your assignments.\nPlease wait — this may take 5–10 seconds.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: 8,
-          left: 8,
-          child: IconButton(
-            icon: const Icon(Icons.close),
-            color: Colors.white.withValues(alpha: 0.9),
-            onPressed: () {
-              _invalidateHome();
-              context.go('/home');
-            },
+        _buildFeedbackHeader(context),
+        Expanded(
+          child: PracticeFeedbackSkeleton(
+            isSkipped: _submittedAnswer == '(skipped)',
+            targetPhrase: question?.sentenceInLearningLanguage,
+            submittedAnswer: _submittedAnswer,
           ),
         ),
       ],
@@ -220,8 +262,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               _invalidateHome();
               context.go('/home');
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.button),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.button),
             child: const Text('Back to Home'),
           ),
         ],
@@ -245,7 +286,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     // earlier waves today. Wave 1 starts at "0/total"; a freshly-started wave 2
     // reads "total/total" and bumps to "(total+1)/total" on first submit.
     final isContinueReviewWave = session.cumulativeOffsetQuestionCount > 0;
-    final displayIndex = session.cumulativeOffsetQuestionCount + currentCardIndex;
+    final displayIndex =
+        session.cumulativeOffsetQuestionCount + currentCardIndex;
 
     return Column(
       children: [
@@ -359,8 +401,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
               value: progress,
               minHeight: 6,
               backgroundColor: AppColors.cardBorder,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.button),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
             ),
           ),
         ],
@@ -484,9 +525,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   Widget _buildSkipButton(int currentCardIndex) {
     return Center(
       child: TextButton(
-        onPressed: _isSubmitting
-            ? null
-            : () => _skipQuestion(currentCardIndex),
+        onPressed: _isSubmitting ? null : () => _skipQuestion(currentCardIndex),
         child: const Text(
           "I DON'T KNOW THIS ONE",
           style: TextStyle(
@@ -515,7 +554,12 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   /// score + corrected translation are back. Phase 2 (explanations) is fired
   /// without awaiting; results stream onto the question via Firestore.
   Future<void> _evaluate(int questionIndex, String answer) async {
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _isFeedbackLoading = true;
+      _submittedAnswer = answer;
+      _answeredQuestionIndex = questionIndex;
+    });
 
     try {
       final result = await evaluateSentencePracticeResponse(
@@ -532,21 +576,26 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
         _answeredQuestionIndex = questionIndex;
         _answeredCount = result.completedQuestionCount;
         _isSubmitting = false;
+        _isFeedbackLoading = false;
       });
 
-      unawaited(generateSentencePracticeExplanation(
-        assignmentId: widget.assignmentId,
-        questionIndex: questionIndex,
-      ));
+      unawaited(
+        generateSentencePracticeExplanation(
+          assignmentId: widget.assignmentId,
+          questionIndex: questionIndex,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
+      setState(() {
+        _isSubmitting = false;
+        _isFeedbackLoading = false;
+        _submittedAnswer = null;
+        _answeredQuestionIndex = null;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.danger,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -555,6 +604,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     setState(() {
       _answerController.clear();
       _isSubmitting = false;
+      _isFeedbackLoading = false;
       _phase1Result = null;
       _submittedAnswer = null;
       _answeredQuestionIndex = null;
@@ -643,8 +693,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     final color = score >= 80
         ? AppColors.success
         : score >= 50
-            ? AppColors.assignmentTypeAccent
-            : AppColors.danger;
+        ? AppColors.assignmentTypeAccent
+        : AppColors.danger;
 
     return Center(
       child: SizedBox(
@@ -702,7 +752,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
+              color: AppColors.blueHighlighted.withValues(alpha: 0.3),
+            ),
           ),
           child: Text(
             submittedAnswer,
@@ -765,7 +816,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
 
   Widget _buildCorrectedSection(SentencePracticePhase1Result result) {
     final segments = result.correctedVersionSegments;
-    final hasHighlights = !result.skipped &&
+    final hasHighlights =
+        !result.skipped &&
         segments != null &&
         segments.isNotEmpty &&
         segments.any((s) => s.highlight != 'none');
@@ -851,11 +903,16 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   /// Explanation section. Phase 2 generates the bullets after phase 1 returns;
   /// `eval` arrives live via the Firestore session stream, so this rebuilds
   /// from "Verbly is thinking…" to the bullets without the user leaving.
-  Widget _buildExplanationSection(TranslationAiEvaluation? eval, int questionIndex) {
+  Widget _buildExplanationSection(
+    TranslationAiEvaluation? eval,
+    int questionIndex,
+  ) {
     final status = eval?.explanationStatus ?? 'generating';
     final explanations = eval?.explanations ?? const <TranslationExplanation>[];
 
-    if (status == 'ready' && explanations.isEmpty) return const SizedBox.shrink();
+    if (status == 'ready' && explanations.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     Widget body;
     if (status == 'failed') {
@@ -895,7 +952,8 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
+              color: AppColors.blueHighlighted.withValues(alpha: 0.3),
+            ),
           ),
           child: body,
         ),
@@ -903,7 +961,9 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
     );
   }
 
-  Widget _buildTranslationExplanationBullets(List<TranslationExplanation> explanations) {
+  Widget _buildTranslationExplanationBullets(
+    List<TranslationExplanation> explanations,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: explanations.map((exp) {
@@ -916,7 +976,10 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                 margin: const EdgeInsets.only(top: 4),
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.assignmentTypeAccent),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.assignmentTypeAccent,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -925,12 +988,20 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
                   children: [
                     Text(
                       exp.category.toUpperCase(),
-                      style: const TextStyle(color: AppColors.assignmentTypeAccent, fontSize: 12, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: AppColors.assignmentTypeAccent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       exp.detail,
-                      style: const TextStyle(color: AppColors.navbarInactive, fontSize: 13, height: 1.4),
+                      style: const TextStyle(
+                        color: AppColors.navbarInactive,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -948,12 +1019,19 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
         SizedBox(
           width: 14,
           height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.assignmentTypeAccent),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.assignmentTypeAccent,
+          ),
         ),
         SizedBox(width: 10),
         Text(
           'Verbly is thinking…',
-          style: TextStyle(color: AppColors.navbarInactive, fontSize: 12, fontStyle: FontStyle.italic),
+          style: TextStyle(
+            color: AppColors.navbarInactive,
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ],
     );
@@ -990,10 +1068,7 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
         const Expanded(
           child: Text(
             "Couldn't load the explanation.",
-            style: TextStyle(
-              color: AppColors.navbarInactive,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.navbarInactive, fontSize: 13),
           ),
         ),
         TextButton(
@@ -1012,10 +1087,12 @@ class _TranslationSessionPageState extends ConsumerState<TranslationSessionPage>
   }
 
   void _retryExplanation(int questionIndex) {
-    unawaited(generateSentencePracticeExplanation(
-      assignmentId: widget.assignmentId,
-      questionIndex: questionIndex,
-    ));
+    unawaited(
+      generateSentencePracticeExplanation(
+        assignmentId: widget.assignmentId,
+        questionIndex: questionIndex,
+      ),
+    );
   }
 
   Widget _buildFeedbackBottomBar(

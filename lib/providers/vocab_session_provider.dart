@@ -191,6 +191,75 @@ class VocabSessionNotifier extends Notifier<AsyncValue<VocabSessionState>> {
     );
   }
 
+  /// Removes a card immediately while the rating request is in flight. The
+  /// server response later reconciles whether the card should return today.
+  void applyRatingOptimistically(int index) {
+    final current = state.value;
+    if (current == null || index < 0 || index >= current.questions.length) {
+      return;
+    }
+
+    final list = List<VocabQuestion>.from(current.questions)..removeAt(index);
+    state = AsyncValue.data(
+      current.copyWith(
+        questions: list,
+        completedQuestionCount: current.completedQuestionCount + 1,
+        completionStatus: list.isEmpty
+            ? AssignmentCompletionStatus.completed
+            : AssignmentCompletionStatus.todo,
+      ),
+    );
+  }
+
+  /// Applies the server's due-today decision after an optimistic rating.
+  void reconcileOptimisticRating({
+    required VocabQuestion question,
+    required bool stillDueToday,
+    required int completedQuestionCount,
+  }) {
+    final current = state.value;
+    if (current == null) return;
+
+    final list = List<VocabQuestion>.from(current.questions);
+    if (stillDueToday &&
+        !list.any((q) => q.vocabCardId == question.vocabCardId)) {
+      list.add(question);
+    }
+    state = AsyncValue.data(
+      current.copyWith(
+        questions: list,
+        completedQuestionCount: completedQuestionCount,
+        completionStatus: list.isEmpty
+            ? AssignmentCompletionStatus.completed
+            : AssignmentCompletionStatus.todo,
+      ),
+    );
+  }
+
+  /// Restores a card when the rating request fails.
+  void rollbackOptimisticRating({
+    required VocabQuestion question,
+    required int index,
+    required int completedQuestionCount,
+  }) {
+    final current = state.value;
+    if (current == null ||
+        current.questions.any((q) => q.vocabCardId == question.vocabCardId)) {
+      return;
+    }
+
+    final list = List<VocabQuestion>.from(current.questions);
+    final insertAt = index.clamp(0, list.length);
+    list.insert(insertAt, question);
+    state = AsyncValue.data(
+      current.copyWith(
+        questions: list,
+        completedQuestionCount: completedQuestionCount,
+        completionStatus: AssignmentCompletionStatus.todo,
+      ),
+    );
+  }
+
   /// Clear so next open refetches (e.g. new day).
   void clear() {
     state = const AsyncValue.loading();

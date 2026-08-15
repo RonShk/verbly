@@ -12,6 +12,7 @@ import '../models/generation_status.dart';
 import '../services/sentence_practice_evaluation_api.dart';
 import '../theme/app_colors.dart';
 import '../widgets/practice_empty_state.dart';
+import '../widgets/practice_session_skeleton.dart';
 
 class ProductionSessionPage extends ConsumerStatefulWidget {
   const ProductionSessionPage({super.key, required this.assignmentId});
@@ -19,14 +20,15 @@ class ProductionSessionPage extends ConsumerStatefulWidget {
   final String assignmentId;
 
   @override
-  ConsumerState<ProductionSessionPage> createState() => _ProductionSessionPageState();
+  ConsumerState<ProductionSessionPage> createState() =>
+      _ProductionSessionPageState();
 }
 
-class _ProductionSessionPageState
-    extends ConsumerState<ProductionSessionPage> {
+class _ProductionSessionPageState extends ConsumerState<ProductionSessionPage> {
   final _answerController = TextEditingController();
   final _answerFocusNode = FocusNode();
   bool _isSubmitting = false;
+  bool _isFeedbackLoading = false;
   SentencePracticePhase1Result? _phase1Result;
   String? _submittedAnswer;
 
@@ -70,13 +72,22 @@ class _ProductionSessionPageState
 
   @override
   Widget build(BuildContext context) {
-    final sessionAsync = ref.watch(productionSessionStreamProvider(widget.assignmentId));
+    final daily = ref.watch(productionDailyProvider).value;
+    final sessionAsync = ref.watch(
+      productionSessionStreamProvider(widget.assignmentId),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: sessionAsync.when(
-          loading: () => _buildLoadingView(context),
+          loading: () => PracticeSessionSkeleton(
+            modeLabel: 'PRODUCTION MODE',
+            title: 'Production practice',
+            currentProgress: daily?.completedQuestionCount ?? 0,
+            totalProgress: daily?.totalQuestionCount ?? 0,
+            cumulativeOffset: daily?.cumulativeOffsetQuestionCount ?? 0,
+          ),
           error: (err, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -92,14 +103,17 @@ class _ProductionSessionPageState
                   Text(
                     err.toString(),
                     style: const TextStyle(
-                        color: AppColors.navbarInactive, fontSize: 12),
+                      color: AppColors.navbarInactive,
+                      fontSize: 12,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _refreshSession,
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.button),
+                      backgroundColor: AppColors.button,
+                    ),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -116,11 +130,34 @@ class _ProductionSessionPageState
 
             final total = session.totalQuestionCount;
             final questions = session.questions;
-            final isGenerating = session.generationStatus == GenerationStatus.generating;
+            final answeredQuestion =
+                _answeredQuestionIndex != null &&
+                    _answeredQuestionIndex! < questions.length
+                ? questions[_answeredQuestionIndex!]
+                : null;
+            if (_isFeedbackLoading) {
+              return _buildFeedbackLoadingView(context, answeredQuestion);
+            }
+
+            final isGenerating =
+                session.generationStatus == GenerationStatus.generating;
             // Use the optimistic floor so a freshly-answered card never reappears
             // while the Firestore progress update is in flight.
             final serverCompleted = session.completedQuestionCount;
-            final currentCardIndex = serverCompleted > _answeredCount ? serverCompleted : _answeredCount;
+            final currentCardIndex = serverCompleted > _answeredCount
+                ? serverCompleted
+                : _answeredCount;
+
+            if (_phase1Result != null && answeredQuestion != null) {
+              return _buildFeedbackView(
+                context,
+                answeredQuestion,
+                _phase1Result!,
+                _submittedAnswer ?? '',
+                _answeredQuestionIndex ?? currentCardIndex,
+                total,
+              );
+            }
 
             // The whole wave has been answered.
             if (total > 0 && currentCardIndex >= total) {
@@ -130,7 +167,7 @@ class _ProductionSessionPageState
             // still running, otherwise fall back to the completed view.
             if (currentCardIndex >= questions.length) {
               if (isGenerating || questions.isEmpty) {
-                return _buildLoadingView(context);
+                return _buildGeneratingView(context, session, daily);
               }
               return _buildCompletedView(context);
             }
@@ -139,7 +176,9 @@ class _ProductionSessionPageState
 
             if (_phase1Result != null) {
               final answeredIndex = _answeredQuestionIndex ?? currentCardIndex;
-              final answeredQ = answeredIndex < questions.length ? questions[answeredIndex] : q;
+              final answeredQ = answeredIndex < questions.length
+                  ? questions[answeredIndex]
+                  : q;
               return _buildFeedbackView(
                 context,
                 answeredQ,
@@ -164,39 +203,40 @@ class _ProductionSessionPageState
     );
   }
 
-  /// Loading view shown while AI generation is in progress on the backend.
-  /// Includes an X close button so the user can return to Home; the Cloud
-  /// Function continues running and persists its result regardless.
-  Widget _buildLoadingView(BuildContext context) {
-    return Stack(
+  Widget _buildGeneratingView(
+    BuildContext context,
+    ProductionSessionData session,
+    ProductionDailyState? daily,
+  ) {
+    return PracticeSessionSkeleton(
+      modeLabel: 'PRODUCTION MODE',
+      title: session.assignmentTitle.isEmpty
+          ? 'Production practice'
+          : session.assignmentTitle,
+      currentProgress: session.totalQuestionCount > 0
+          ? session.completedQuestionCount
+          : daily?.completedQuestionCount ?? 0,
+      totalProgress: session.totalQuestionCount > 0
+          ? session.totalQuestionCount
+          : daily?.totalQuestionCount ?? 0,
+      cumulativeOffset: session.totalQuestionCount > 0
+          ? session.cumulativeOffsetQuestionCount
+          : daily?.cumulativeOffsetQuestionCount ?? 0,
+    );
+  }
+
+  Widget _buildFeedbackLoadingView(
+    BuildContext context,
+    ProductionQuestion? question,
+  ) {
+    return Column(
       children: [
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(color: AppColors.blueHighlighted),
-              const SizedBox(height: 24),
-              const Text(
-                'We are generating your assignments.\nPlease wait — this may take 5–10 seconds.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: 8,
-          left: 8,
-          child: IconButton(
-            icon: const Icon(Icons.close),
-            color: Colors.white.withValues(alpha: 0.9),
-            onPressed: () {
-              _invalidateHome();
-              context.go('/home');
-            },
+        _buildFeedbackHeader(context),
+        Expanded(
+          child: PracticeFeedbackSkeleton(
+            isSkipped: _submittedAnswer == '(skipped)',
+            targetPhrase: question?.sentenceInNativeLanguage,
+            submittedAnswer: _submittedAnswer,
           ),
         ),
       ],
@@ -222,8 +262,7 @@ class _ProductionSessionPageState
               _invalidateHome();
               context.go('/home');
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.button),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.button),
             child: const Text('Back to Home'),
           ),
         ],
@@ -247,7 +286,8 @@ class _ProductionSessionPageState
     // earlier waves today. Wave 1 starts at "0/total"; a freshly-started wave 2
     // reads "total/total" and bumps to "(total+1)/total" on first submit.
     final isContinueReviewWave = session.cumulativeOffsetQuestionCount > 0;
-    final displayIndex = session.cumulativeOffsetQuestionCount + currentCardIndex;
+    final displayIndex =
+        session.cumulativeOffsetQuestionCount + currentCardIndex;
 
     return Column(
       children: [
@@ -290,7 +330,9 @@ class _ProductionSessionPageState
   ) {
     // Bar rule: post–continue-review waves are always full; first wave fills
     // proportionally to the completed count — same as Home's card.
-    final progress = isContinueReviewWave ? 1.0 : (total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0);
+    final progress = isContinueReviewWave
+        ? 1.0
+        : (total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
@@ -359,8 +401,7 @@ class _ProductionSessionPageState
               value: progress,
               minHeight: 6,
               backgroundColor: AppColors.cardBorder,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.button),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
             ),
           ),
         ],
@@ -513,7 +554,12 @@ class _ProductionSessionPageState
   /// score + corrected translation are back. Phase 2 (explanations) is fired
   /// without awaiting; results stream onto the question via Firestore.
   Future<void> _evaluate(int questionIndex, String answer) async {
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _isFeedbackLoading = true;
+      _submittedAnswer = answer;
+      _answeredQuestionIndex = questionIndex;
+    });
 
     try {
       final result = await evaluateSentencePracticeResponse(
@@ -531,22 +577,27 @@ class _ProductionSessionPageState
         _answeredQuestionIndex = questionIndex;
         _answeredCount = result.completedQuestionCount;
         _isSubmitting = false;
+        _isFeedbackLoading = false;
       });
 
-      unawaited(generateSentencePracticeExplanation(
-        assignmentId: widget.assignmentId,
-        questionIndex: questionIndex,
-        useForeignCharacters: kUseForeignCharacters,
-      ));
+      unawaited(
+        generateSentencePracticeExplanation(
+          assignmentId: widget.assignmentId,
+          questionIndex: questionIndex,
+          useForeignCharacters: kUseForeignCharacters,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
+      setState(() {
+        _isSubmitting = false;
+        _isFeedbackLoading = false;
+        _submittedAnswer = null;
+        _answeredQuestionIndex = null;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppColors.danger,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.danger),
       );
     }
   }
@@ -555,6 +606,7 @@ class _ProductionSessionPageState
     setState(() {
       _answerController.clear();
       _isSubmitting = false;
+      _isFeedbackLoading = false;
       _phase1Result = null;
       _submittedAnswer = null;
       _answeredQuestionIndex = null;
@@ -640,7 +692,11 @@ class _ProductionSessionPageState
 
   Widget _buildScoreRing(int score) {
     final fraction = score / 100;
-    final color = score >= 80 ? AppColors.success : score >= 50 ? AppColors.assignmentTypeAccent : AppColors.danger;
+    final color = score >= 80
+        ? AppColors.success
+        : score >= 50
+        ? AppColors.assignmentTypeAccent
+        : AppColors.danger;
 
     return Center(
       child: SizedBox(
@@ -698,7 +754,8 @@ class _ProductionSessionPageState
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
+              color: AppColors.blueHighlighted.withValues(alpha: 0.3),
+            ),
           ),
           child: Text(
             submittedAnswer,
@@ -761,7 +818,8 @@ class _ProductionSessionPageState
 
   Widget _buildCorrectedSection(SentencePracticePhase1Result result) {
     final segments = result.correctedVersionSegments;
-    final hasHighlights = !result.skipped &&
+    final hasHighlights =
+        !result.skipped &&
         segments != null &&
         segments.isNotEmpty &&
         segments.any((s) => s.highlight != 'none');
@@ -846,11 +904,16 @@ class _ProductionSessionPageState
 
   /// Explanation section. Phase 2 streams bullets onto the question doc after
   /// phase 1 returns; `eval` updates live via the Firestore session stream.
-  Widget _buildExplanationSection(ProductionAiEvaluation? eval, int questionIndex) {
+  Widget _buildExplanationSection(
+    ProductionAiEvaluation? eval,
+    int questionIndex,
+  ) {
     final status = eval?.explanationStatus ?? 'generating';
     final explanations = eval?.explanations ?? const <ProductionExplanation>[];
 
-    if (status == 'ready' && explanations.isEmpty) return const SizedBox.shrink();
+    if (status == 'ready' && explanations.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     Widget body;
     if (status == 'failed') {
@@ -890,7 +953,8 @@ class _ProductionSessionPageState
             color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: AppColors.blueHighlighted.withValues(alpha: 0.3)),
+              color: AppColors.blueHighlighted.withValues(alpha: 0.3),
+            ),
           ),
           child: body,
         ),
@@ -898,7 +962,9 @@ class _ProductionSessionPageState
     );
   }
 
-  Widget _buildProductionExplanationBullets(List<ProductionExplanation> explanations) {
+  Widget _buildProductionExplanationBullets(
+    List<ProductionExplanation> explanations,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: explanations.map((exp) {
@@ -911,7 +977,10 @@ class _ProductionSessionPageState
                 margin: const EdgeInsets.only(top: 4),
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.assignmentTypeAccent),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.assignmentTypeAccent,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -920,12 +989,20 @@ class _ProductionSessionPageState
                   children: [
                     Text(
                       exp.category.toUpperCase(),
-                      style: const TextStyle(color: AppColors.assignmentTypeAccent, fontSize: 12, fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        color: AppColors.assignmentTypeAccent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       exp.detail,
-                      style: const TextStyle(color: AppColors.navbarInactive, fontSize: 13, height: 1.4),
+                      style: const TextStyle(
+                        color: AppColors.navbarInactive,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
@@ -943,12 +1020,19 @@ class _ProductionSessionPageState
         SizedBox(
           width: 14,
           height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.assignmentTypeAccent),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.assignmentTypeAccent,
+          ),
         ),
         SizedBox(width: 10),
         Text(
           'Verbly is thinking…',
-          style: TextStyle(color: AppColors.navbarInactive, fontSize: 12, fontStyle: FontStyle.italic),
+          style: TextStyle(
+            color: AppColors.navbarInactive,
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ],
     );
@@ -985,10 +1069,7 @@ class _ProductionSessionPageState
         const Expanded(
           child: Text(
             "Couldn't load the explanation.",
-            style: TextStyle(
-              color: AppColors.navbarInactive,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.navbarInactive, fontSize: 13),
           ),
         ),
         TextButton(
@@ -1007,11 +1088,13 @@ class _ProductionSessionPageState
   }
 
   void _retryExplanation(int questionIndex) {
-    unawaited(generateSentencePracticeExplanation(
-      assignmentId: widget.assignmentId,
-      questionIndex: questionIndex,
-      useForeignCharacters: kUseForeignCharacters,
-    ));
+    unawaited(
+      generateSentencePracticeExplanation(
+        assignmentId: widget.assignmentId,
+        questionIndex: questionIndex,
+        useForeignCharacters: kUseForeignCharacters,
+      ),
+    );
   }
 
   Widget _buildFeedbackBottomBar(
