@@ -66,11 +66,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDLl-3rjIyNCcJfbaxKzT8b9KabT7yt5js',
-    appId: '1:47390662133:ios:0bfc5ae6deeec948b954bc',
+    appId: '1:47390662133:ios:620bb4699113ca16b954bc',
     messagingSenderId: '47390662133',
     projectId: 'vocab-forge-78557',
     storageBucket: 'vocab-forge-78557.firebasestorage.app',
-    iosBundleId: 'com.example.vocabForge',
+    iosBundleId: 'com.verbly.app',
   );
 
 }
