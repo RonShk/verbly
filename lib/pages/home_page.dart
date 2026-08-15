@@ -9,9 +9,7 @@ import '../models/home_page_models.dart';
 import '../providers/production_session_provider.dart';
 import '../providers/translation_session_provider.dart';
 import '../providers/vocab_session_provider.dart';
-import '../services/production_session_api_calls.dart';
 import '../services/session_generation_api.dart';
-import '../services/translation_session_api_calls.dart';
 import '../theme/app_colors.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -419,10 +417,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         return () async {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
-            assignmentId = await ref
-                .read(vocabSessionProvider.notifier)
-                .startContinueReview();
-            if (assignmentId.isEmpty) return;
+            context.go('/assignment/vocab/pending');
+            return;
           }
           if (!context.mounted) return;
           context.go('/assignment/vocab/$assignmentId');
@@ -431,12 +427,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         return () async {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
-            try {
-              final prepared = await prepareTranslationContinueReview();
-              assignmentId = prepared.assignmentId;
-            } catch (_) {
-              return;
-            }
+            context.go('/assignment/translation/pending');
+            return;
           }
           ref.read(translationDailyProvider.notifier).clear();
           if (!context.mounted) return;
@@ -446,12 +438,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         return () async {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
-            try {
-              final prepared = await prepareProductionContinueReview();
-              assignmentId = prepared.assignmentId;
-            } catch (_) {
-              return;
-            }
+            context.go('/assignment/production/pending');
+            return;
           }
           ref.read(productionDailyProvider.notifier).clear();
           if (!context.mounted) return;
@@ -506,11 +494,6 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ],
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              color: Colors.white.withValues(alpha: 0.9),
-              onPressed: () {},
             ),
           ],
         ),
