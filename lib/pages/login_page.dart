@@ -93,7 +93,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Welcome to Vocab Forge',
+          'Welcome to Verbly',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
         ),

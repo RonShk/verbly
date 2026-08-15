@@ -41,7 +41,7 @@ class MyApp extends ConsumerWidget {
     ref.watch(ensureStudentDocProvider);
     final router = ref.watch(goRouterProvider);
     return MaterialApp.router(
-      title: 'Vocab Forge',
+      title: 'Verbly - Vocab & Practice',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 55, 149, 86)),
       ),
