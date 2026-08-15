@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'pages/home_page.dart';
+import 'pages/continue_review_loading_page.dart';
 import 'pages/login_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/student_onboarding_page.dart';
@@ -53,6 +54,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) {
               final id = state.pathParameters['id'] ?? '';
               final type = state.pathParameters['type'] ?? '';
+              if (id == 'pending') {
+                return NoTransitionPage(
+                  key: state.pageKey,
+                  child: ContinueReviewLoadingPage(type: type),
+                );
+              }
               final Widget page = switch (type) {
                 'vocab' => VocabSessionPage(assignmentId: id),
                 'translation' => TranslationSessionPage(assignmentId: id),
