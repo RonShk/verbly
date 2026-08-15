@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import * as crypto from "crypto";
 import * as functions from "firebase-functions/v1";
 
@@ -64,7 +65,7 @@ export async function consumeAiQuota(context: functions.https.CallableContext, o
     tx.set(usageRef, {
       uid: context.auth!.uid,
       [operation]: current + 1,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
 
     if (ipRef) {
@@ -72,7 +73,7 @@ export async function consumeAiQuota(context: functions.https.CallableContext, o
       tx.set(ipRef, {
         windowStartedAt: nowMs - windowStartedAt < IP_WINDOW_MS ? windowStartedAt : nowMs,
         count: nextIpCount,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
     }
   });
