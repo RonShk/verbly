@@ -35,7 +35,9 @@ class MainShell extends ConsumerWidget {
     return connection.when(
       loading: () => const Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.blueHighlighted),
+        ),
       ),
       error: (error, _) => StudentConnectionPage(
         errorMessage: 'Please check your connection and try again.',

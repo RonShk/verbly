@@ -75,7 +75,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         translation.completionStatus == AssignmentCompletionStatus.todo &&
         translation.completedQuestionCount == 0 &&
         (translation.assignmentId?.isNotEmpty ?? false)) {
-      enqueueSessionGeneration(assignmentId: translation.assignmentId!).ignore();
+      enqueueSessionGeneration(
+        assignmentId: translation.assignmentId!,
+      ).ignore();
     }
 
     final production = ref.read(productionDailyProvider).value;
@@ -90,10 +92,14 @@ class _HomePageState extends ConsumerState<HomePage> {
   /// Kick off a stub-only status fetch for each mode if its per-day cache is
   /// missing. No AI generation happens here.
   void _loadModesIfNeeded() {
-    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(
+      0,
+      10,
+    );
 
     final vocabCache = ref.read(vocabSessionProvider).value;
-    final hasTodayVocab = vocabCache != null && vocabCache.sessionDateKey == todayKey;
+    final hasTodayVocab =
+        vocabCache != null && vocabCache.sessionDateKey == todayKey;
     if (!hasTodayVocab) {
       ref.read(vocabSessionProvider.notifier).loadIfNeeded();
     }
@@ -153,6 +159,40 @@ class _HomePageState extends ConsumerState<HomePage> {
     required AsyncValue<TranslationDailyState> translationDaily,
     required AsyncValue<ProductionDailyState> productionDaily,
   }) {
+    final vocabState = vocabSession.value;
+
+    // Production and Translation are generated from the student's vocabulary.
+    // Until the vocabulary lookup resolves, keep the assignment list from
+    // flashing in with misleading empty cards. Once the deck is confirmed
+    // empty, show one informative state instead of three unusable assignments.
+    if (vocabState == null || vocabSession.isLoading) {
+      return CustomScrollView(
+        slivers: [
+          _buildHeader(context),
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.blueHighlighted,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (vocabState.deckIsEmpty) {
+      return CustomScrollView(
+        slivers: [
+          _buildHeader(context),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _buildNoAssignmentsState(),
+          ),
+        ],
+      );
+    }
+
     final todoAssignments = <HomeAssignment>[];
     final completed = <HomeCompletion>[];
 
@@ -173,8 +213,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
 
     // Ensure UI order is always: Vocab → Production → Translation.
-    todoAssignments.sort((a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)));
-    completed.sort((a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)));
+    todoAssignments.sort(
+      (a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)),
+    );
+    completed.sort(
+      (a, b) => _modeOrderIndex(a.type).compareTo(_modeOrderIndex(b.type)),
+    );
 
     return CustomScrollView(
       slivers: [
@@ -183,16 +227,19 @@ class _HomePageState extends ConsumerState<HomePage> {
         SliverList(
           delegate: SliverChildListDelegate(
             todoAssignments
-                .map((a) => _AssignmentCard(
-                      type: a.type,
-                      teacher: a.teacher,
-                      due: a.dueDate,
-                      completedQuestionCount: a.completedQuestionCount,
-                      totalQuestionCount: a.totalQuestionCount,
-                      cumulativeOffsetQuestionCount: a.cumulativeOffsetQuestionCount,
-                      buttonLabel: a.buttonLabel,
-                      onTap: () => _onStartAssignment(context, a),
-                    ))
+                .map(
+                  (a) => _AssignmentCard(
+                    type: a.type,
+                    teacher: a.teacher,
+                    due: a.dueDate,
+                    completedQuestionCount: a.completedQuestionCount,
+                    totalQuestionCount: a.totalQuestionCount,
+                    cumulativeOffsetQuestionCount:
+                        a.cumulativeOffsetQuestionCount,
+                    buttonLabel: a.buttonLabel,
+                    onTap: () => _onStartAssignment(context, a),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -205,17 +252,19 @@ class _HomePageState extends ConsumerState<HomePage> {
   // Per-mode card assembly
   // ---------------------------------------------------------------------------
 
-  void _addVocabCards({ required AsyncValue<VocabSessionState> vocabSession, required List<HomeAssignment> todoAssignments, required List<HomeCompletion> completed,}) {
-    final todayKey = DateTime.now().toLocal().toIso8601String().substring(0, 10);
+  void _addVocabCards({
+    required AsyncValue<VocabSessionState> vocabSession,
+    required List<HomeAssignment> todoAssignments,
+    required List<HomeCompletion> completed,
+  }) {
+    final todayKey = DateTime.now().toLocal().toIso8601String().substring(
+      0,
+      10,
+    );
     final cache = vocabSession.value;
     if (cache == null || cache.sessionDateKey != todayKey) return;
 
-    // With no words assigned the backend has nothing to draw, so the wave comes
-    // back empty and would otherwise land under COMPLETED — reading as "done"
-    // for a student who never had anything to do, with a Continue Review button
-    // that just creates more empty waves. Keep the row tappable instead; the
-    // session page explains what's going on.
-    if (cache.deckIsEmpty || cache.completionStatus == AssignmentCompletionStatus.todo) {
+    if (cache.completionStatus == AssignmentCompletionStatus.todo) {
       todoAssignments.add(
         HomeAssignment(
           id: cache.assignmentId,
@@ -235,10 +284,56 @@ class _HomePageState extends ConsumerState<HomePage> {
     // it is a "Continue review" wave that hasn't been started yet. In the
     // latter it still has cards, so passing the assignmentId lets the button
     // skip the prepare* step and go straight to the session.
-    completed.add(HomeCompletion(
-      type: 'VOCAB',
-      assignmentId: cache.questions.isNotEmpty ? cache.assignmentId : null,
-    ));
+    completed.add(
+      HomeCompletion(
+        type: 'VOCAB',
+        assignmentId: cache.questions.isNotEmpty ? cache.assignmentId : null,
+      ),
+    );
+  }
+
+  Widget _buildNoAssignmentsState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppColors.cardBorder,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.menu_book_outlined,
+              size: 38,
+              color: AppColors.navbarInactive,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'All clear for now!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "Your tutor hasn't assigned any practice sessions yet.\nCheck back soon for your next set of vocabulary, production, or translation tasks.",
+            style: TextStyle(
+              color: AppColors.navbarInactive,
+              fontSize: 15,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
   void _addTranslationCards({
@@ -266,10 +361,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       // for a wave-2+ that hasn't been started yet (hide flag set). In the
       // latter case, the assignmentId is non-null and we can navigate
       // directly without re-preparing.
-      completed.add(HomeCompletion(
-        type: 'TRANSLATION',
-        assignmentId: state.assignmentId,
-      ));
+      completed.add(
+        HomeCompletion(type: 'TRANSLATION', assignmentId: state.assignmentId),
+      );
     }
   }
 
@@ -294,10 +388,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       );
     } else {
-      completed.add(HomeCompletion(
-        type: 'PRODUCTION',
-        assignmentId: state.assignmentId,
-      ));
+      completed.add(
+        HomeCompletion(type: 'PRODUCTION', assignmentId: state.assignmentId),
+      );
     }
   }
 
@@ -326,7 +419,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         return () async {
           var assignmentId = c.assignmentId;
           if (assignmentId == null || assignmentId.isEmpty) {
-            assignmentId = await ref.read(vocabSessionProvider.notifier).startContinueReview();
+            assignmentId = await ref
+                .read(vocabSessionProvider.notifier)
+                .startContinueReview();
             if (assignmentId.isEmpty) return;
           }
           if (!context.mounted) return;
@@ -441,7 +536,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildCompletedSection(BuildContext context, List<HomeCompletion> completed) {
+  Widget _buildCompletedSection(
+    BuildContext context,
+    List<HomeCompletion> completed,
+  ) {
     if (completed.isEmpty) return const SizedBox(height: 24);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,11 +563,13 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
         ),
-        ...completed.map((c) => _CompletedItem(
-              title: c.type,
-              subtitle: '',
-              onContinue: _onContinueCompleted(context, c),
-            )),
+        ...completed.map(
+          (c) => _CompletedItem(
+            title: c.type,
+            subtitle: '',
+            onContinue: _onContinueCompleted(context, c),
+          ),
+        ),
         const SizedBox(height: 24),
       ],
     );
@@ -503,13 +603,18 @@ class _AssignmentCard extends StatelessWidget {
     //  - First wave of the day (offset == 0): show in-wave fraction 0..1.
     //  - Any post–"Continue review" wave (offset > 0): always 100% full.
     final isContinueReviewWave = cumulativeOffsetQuestionCount > 0;
-    final progressFraction = isContinueReviewWave ? 1.0 : (totalQuestionCount > 0 ? completedQuestionCount / totalQuestionCount : 0.0);
+    final progressFraction = isContinueReviewWave
+        ? 1.0
+        : (totalQuestionCount > 0
+              ? completedQuestionCount / totalQuestionCount
+              : 0.0);
 
     // Cumulative numerator for the label: what the user has completed, offset
     // by earlier waves today. The session pages use the same expression, so
     // the two screens always agree. Wave 1 starts at "0/15"; a freshly-started
     // wave 2 reads "15/15" and the first answer bumps it to "16/15".
-    final cumulativeNumerator = cumulativeOffsetQuestionCount + completedQuestionCount;
+    final cumulativeNumerator =
+        cumulativeOffsetQuestionCount + completedQuestionCount;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -537,10 +642,7 @@ class _AssignmentCard extends StatelessWidget {
               ),
               Text(
                 teacher,
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: AppColors.navbarInactive, fontSize: 11),
               ),
             ],
           ),
@@ -555,10 +657,7 @@ class _AssignmentCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 'Due: $due',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: AppColors.navbarInactive, fontSize: 12),
               ),
             ],
           ),
@@ -572,17 +671,16 @@ class _AssignmentCard extends StatelessWidget {
                     value: progressFraction,
                     minHeight: 6,
                     backgroundColor: AppColors.cardBorder,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.button,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 '$cumulativeNumerator / $totalQuestionCount questions',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: AppColors.navbarInactive, fontSize: 12),
               ),
             ],
           ),
@@ -647,7 +745,11 @@ class _CompletedItem extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     color: AppColors.success.withValues(alpha: 0.15),
                   ),
-                  child: const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: AppColors.success,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -681,10 +783,15 @@ class _CompletedItem extends StatelessWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.button,
                       backgroundColor: AppColors.button.withValues(alpha: 0.1),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: AppColors.button.withValues(alpha: 0.2)),
+                        side: BorderSide(
+                          color: AppColors.button.withValues(alpha: 0.2),
+                        ),
                       ),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       minimumSize: Size.zero,
@@ -694,7 +801,10 @@ class _CompletedItem extends StatelessWidget {
                       children: [
                         Text(
                           'Continue Review',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         SizedBox(width: 6),
                         Icon(Icons.history, size: 16),
