@@ -105,6 +105,19 @@ final translationDailyProvider =
 /// than blocking until all questions exist.
 final translationSessionStreamProvider = StreamProvider.autoDispose
     .family<TranslationSessionData, String>((ref, assignmentId) async* {
+      // Emit immediately so the destination page can render its skeleton while
+      // the callable enqueues/generates the actual questions.
+      yield TranslationSessionData(
+        assignmentId: assignmentId,
+        type: 'TRANSLATION',
+        assignmentTitle: 'Translation practice',
+        teacher: '',
+        totalQuestionCount: 0,
+        completedQuestionCount: 0,
+        cumulativeOffsetQuestionCount: 0,
+        questions: const [],
+        generationStatus: 'generating',
+      );
       final enqueue = await enqueueSessionGeneration(
         assignmentId: assignmentId,
       );

@@ -7,6 +7,7 @@ import '../providers/vocab_session_provider.dart';
 import '../services/vocab_session_api_calls.dart';
 import '../theme/app_colors.dart';
 import '../widgets/practice_empty_state.dart';
+import '../widgets/practice_session_skeleton.dart';
 
 class VocabSessionPage extends ConsumerStatefulWidget {
   const VocabSessionPage({super.key, required this.assignmentId});
@@ -19,6 +20,7 @@ class VocabSessionPage extends ConsumerStatefulWidget {
 
 class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   bool _isFlipped = false;
+  bool _isRating = false;
   int _currentIndex = 0;
   bool _scheduledAutoHomeNav = false;
 
@@ -26,7 +28,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(vocabSessionProvider.notifier).loadIfNeeded(assignmentId: widget.assignmentId);
+      ref
+          .read(vocabSessionProvider.notifier)
+          .loadIfNeeded(assignmentId: widget.assignmentId);
     });
   }
 
@@ -37,7 +41,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
       _currentIndex = 0;
       _scheduledAutoHomeNav = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(vocabSessionProvider.notifier).refresh(assignmentId: widget.assignmentId);
+        ref
+            .read(vocabSessionProvider.notifier)
+            .refresh(assignmentId: widget.assignmentId);
       });
     }
   }
@@ -50,9 +56,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: sessionAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.blueHighlighted),
-          ),
+          loading: () => const VocabSessionSkeleton(),
           error: (err, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -68,16 +72,21 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                   Text(
                     err.toString(),
                     style: TextStyle(
-                        color: AppColors.navbarInactive, fontSize: 12),
+                      color: AppColors.navbarInactive,
+                      fontSize: 12,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () {
-                      ref.read(vocabSessionProvider.notifier).refresh(assignmentId: widget.assignmentId);
+                      ref
+                          .read(vocabSessionProvider.notifier)
+                          .refresh(assignmentId: widget.assignmentId);
                     },
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.button),
+                      backgroundColor: AppColors.button,
+                    ),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -97,7 +106,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               // through the wave (completedQuestionCount == 0). Explain why
               // instead of bouncing the user straight back to Home.
               if (state.completedQuestionCount == 0) {
-                return state.deckIsEmpty ? const PracticeEmptyState.noWordsAssigned() : const PracticeEmptyState.nothingDueToday();
+                return state.deckIsEmpty
+                    ? const PracticeEmptyState.noWordsAssigned()
+                    : const PracticeEmptyState.nothingDueToday();
               }
 
               // Match Production/Translation behavior: finishing the last item
@@ -111,11 +122,7 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                 });
               }
 
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.blueHighlighted,
-                ),
-              );
+              return const SizedBox.shrink();
             }
 
             final q = questions[currentIndex];
@@ -124,8 +131,11 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
             // never disagree: the numerator is what the user has *completed*,
             // offset by earlier waves today. Wave 1 starts at "0/15"; a freshly
             // started wave 2 reads "15/15" and bumps to "16/15" on first rate.
-            final isContinueReviewWave = state.cumulativeOffsetQuestionCount > 0;
-            final currentPosition = state.cumulativeOffsetQuestionCount + state.completedQuestionCount;
+            final isContinueReviewWave =
+                state.cumulativeOffsetQuestionCount > 0;
+            final currentPosition =
+                state.cumulativeOffsetQuestionCount +
+                state.completedQuestionCount;
 
             return Column(
               children: [
@@ -163,7 +173,11 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   ) {
     // Bar rule: post–continue-review waves are always full; first wave fills
     // proportionally to the completed count — same as Home's card.
-    final progress = isContinueReviewWave ? 1.0 : (totalCount > 0 ? (currentPosition / totalCount).clamp(0.0, 1.0) : 0.0);
+    final progress = isContinueReviewWave
+        ? 1.0
+        : (totalCount > 0
+              ? (currentPosition / totalCount).clamp(0.0, 1.0)
+              : 0.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
@@ -213,7 +227,9 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                     value: progress,
                     minHeight: 6,
                     backgroundColor: AppColors.cardBorder,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.button),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.button,
+                    ),
                   ),
                 ),
               ),
@@ -234,7 +250,10 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
   }
 
   Widget _buildCard(
-      BuildContext context, VocabSessionData session, VocabQuestion q) {
+    BuildContext context,
+    VocabSessionData session,
+    VocabQuestion q,
+  ) {
     return GestureDetector(
       onTap: _isFlipped ? null : () => setState(() => _isFlipped = true),
       child: Container(
@@ -306,14 +325,15 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
               ),
             ] else ...[
               const SizedBox(height: 12),
-              const Icon(Icons.touch_app, size: 18, color: AppColors.navbarInactive),
+              const Icon(
+                Icons.touch_app,
+                size: 18,
+                color: AppColors.navbarInactive,
+              ),
               const SizedBox(height: 2),
               Text(
                 'TAP TO FLIP',
-                style: TextStyle(
-                  color: AppColors.navbarInactive,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: AppColors.navbarInactive, fontSize: 11),
               ),
             ],
           ],
@@ -355,9 +375,17 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: FilledButton(
-                    onPressed: () => _onRating(context, session, q, currentCardIndex, r.rating),
+                    onPressed: () => _onRating(
+                      context,
+                      session,
+                      q,
+                      currentCardIndex,
+                      r.rating,
+                    ),
                     style: FilledButton.styleFrom(
                       backgroundColor: r.color,
+                      disabledBackgroundColor: r.color,
+                      disabledForegroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -368,7 +396,13 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
                       children: [
                         Icon(r.icon, size: 20, color: Colors.white),
                         const SizedBox(height: 4),
-                        Text(r.label, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                        Text(
+                          r.label,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -388,25 +422,47 @@ class _VocabSessionPageState extends ConsumerState<VocabSessionPage> {
     int currentCardIndex,
     int rating,
   ) async {
+    if (_isRating) return;
     final state = ref.read(vocabSessionProvider).value;
     if (state == null) return;
-    final result = await recordVocabResponse(
-      assignmentId: state.assignmentId,
-      questionIndex: q.index,
-      vocabCardId: q.vocabCardId,
-      rating: rating,
-    );
-    if (!context.mounted) return;
-    ref.read(vocabSessionProvider.notifier).applyRating(
-      result.stillDueToday,
-      currentCardIndex,
-      q,
-      completedQuestionCount: result.completedQuestionCount,
-    );
     setState(() {
+      _isRating = true;
       _isFlipped = false;
-      // _currentIndex stays the same: next card is now at this index (after remove/move)
     });
+    ref
+        .read(vocabSessionProvider.notifier)
+        .applyRatingOptimistically(currentCardIndex);
+
+    try {
+      final result = await recordVocabResponse(
+        assignmentId: state.assignmentId,
+        questionIndex: q.index,
+        vocabCardId: q.vocabCardId,
+        rating: rating,
+      );
+      ref
+          .read(vocabSessionProvider.notifier)
+          .reconcileOptimisticRating(
+            question: q,
+            stillDueToday: result.stillDueToday,
+            completedQuestionCount: result.completedQuestionCount,
+          );
+      if (!context.mounted) return;
+    } catch (e) {
+      ref
+          .read(vocabSessionProvider.notifier)
+          .rollbackOptimisticRating(
+            question: q,
+            index: currentCardIndex,
+            completedQuestionCount: state.completedQuestionCount,
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.danger),
+      );
+    } finally {
+      if (mounted) setState(() => _isRating = false);
+    }
   }
 }
 
