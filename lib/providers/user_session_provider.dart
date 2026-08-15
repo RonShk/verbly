@@ -14,6 +14,7 @@ import '../services/student_vocab_service.dart';
 import 'production_session_provider.dart';
 import 'translation_session_provider.dart';
 import 'vocab_session_provider.dart';
+import '../services/auth/apple_sign_in_method.dart';
 
 /// Web client (server) OAuth client id for the Firebase project. Used as
 /// `serverClientId` on Android so Credential Manager mints an idToken Firebase
@@ -26,7 +27,10 @@ const String _googleServerClientId =
 /// Apple (etc.) is just appending another [SignInMethod] to the constructor.
 final userSessionProvider = Provider<UserSession>((ref) {
   return UserSession(
-    signInMethods: [GoogleSignInMethod(serverClientId: _googleServerClientId)],
+    signInMethods: [
+      GoogleSignInMethod(serverClientId: _googleServerClientId),
+      AppleSignInMethod(),
+    ],
   );
 });
 

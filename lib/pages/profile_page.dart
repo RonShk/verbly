@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,7 +26,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           'This permanently deletes your account, vocabulary, practice history, and progress. This cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
@@ -46,13 +50,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Could not delete your account. Please try again.')),
+        SnackBar(
+          content: Text(
+            error.message ?? 'Could not delete your account. Please try again.',
+          ),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete your account. Please try again.')),
+        const SnackBar(
+          content: Text('Could not delete your account. Please try again.'),
+        ),
       );
     }
   }
@@ -61,6 +71,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final user = ref.watch(firebaseUserProvider).value;
     final email = user?.email;
+    final displayName = user?.displayName?.trim().isNotEmpty == true
+        ? user!.displayName!.trim()
+        : 'Signed in';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -71,33 +84,54 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _Avatar(photoUrl: user?.photoURL, displayName: user?.displayName),
+                _Avatar(
+                  photoUrl: _profilePhotoUrl(user),
+                  displayName: user?.displayName,
+                  email: email,
+                ),
                 const SizedBox(height: 16),
                 Text(
-                  user?.displayName ?? 'Signed in',
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 if (email != null && email.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(email, style: TextStyle(color: AppColors.navbarInactive, fontSize: 14)),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      color: AppColors.navbarInactive,
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.tonal(
-                    onPressed: _deleting ? null : () async => ref.read(userSessionProvider).signOut(),
+                    onPressed: _deleting
+                        ? null
+                        : () async => ref.read(userSessionProvider).signOut(),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.danger.withValues(alpha: 0.15),
                       foregroundColor: AppColors.danger,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.logout, size: 18),
                         SizedBox(width: 8),
-                        Text('Sign out', style: TextStyle(fontWeight: FontWeight.w600)),
+                        Text(
+                          'Sign out',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ),
@@ -109,18 +143,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     onPressed: _deleting ? null : _confirmDeleteAccount,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.danger,
-                      side: BorderSide(color: AppColors.danger.withValues(alpha: 0.65)),
+                      side: BorderSide(
+                        color: AppColors.danger.withValues(alpha: 0.65),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     child: _deleting
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.delete_outline, size: 18),
                               SizedBox(width: 8),
-                              Text('Delete account', style: TextStyle(fontWeight: FontWeight.w600)),
+                              Text(
+                                'Delete account',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                             ],
                           ),
                   ),
@@ -135,22 +180,48 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({this.photoUrl, this.displayName});
+  const _Avatar({this.photoUrl, this.displayName, this.email});
 
   final String? photoUrl;
   final String? displayName;
+  final String? email;
 
   @override
   Widget build(BuildContext context) {
     final name = displayName?.trim();
-    final initial = (name == null || name.isEmpty) ? '?' : name[0].toUpperCase();
+    final emailValue = email?.trim();
+    final source = (name == null || name.isEmpty) ? emailValue : name;
+    final initial = (source == null || source.isEmpty)
+        ? '?'
+        : source[0].toUpperCase();
     return CircleAvatar(
       radius: 44,
       backgroundColor: AppColors.button.withValues(alpha: 0.2),
       backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
       child: photoUrl == null
-          ? Text(initial, style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold))
+          ? Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+              ),
+            )
           : null,
     );
   }
+}
+
+/// Apple does not provide profile photos. If Apple is linked to a Google
+/// provider, use Google's photo as a fallback before showing the email initial.
+String? _profilePhotoUrl(User? user) {
+  final directPhoto = user?.photoURL;
+  if (directPhoto != null && directPhoto.isNotEmpty) return directPhoto;
+
+  for (final provider in user?.providerData ?? const <UserInfo>[]) {
+    final providerPhoto = provider.photoURL;
+    if (providerPhoto != null && providerPhoto.isNotEmpty) return providerPhoto;
+  }
+
+  return null;
 }
