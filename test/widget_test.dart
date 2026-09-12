@@ -25,5 +25,7 @@ void main() {
     );
 
     expect(find.text('Welcome to Verbly'), findsOneWidget);
+    expect(find.text('Terms of Service'), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
   });
 }

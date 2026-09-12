@@ -7,6 +7,7 @@ import {persistEvaluatedQuestion} from "./persistEvaluatedQuestion";
 import {getModeConfig} from "../../core/sessionModes";
 import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
 import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
+import {assertAiDataSharingConsent} from "../../../../../utils/aiDataSharingConsent";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -27,6 +28,7 @@ export const evaluateSentencePracticeResponse = functions.https.onCall(async (da
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
   const userId = context.auth.uid;
+  await assertAiDataSharingConsent(userId);
   const assignmentId = data?.assignmentId;
   const questionIndex = data?.questionIndex;
   const studentAnswer = data?.studentAnswer;

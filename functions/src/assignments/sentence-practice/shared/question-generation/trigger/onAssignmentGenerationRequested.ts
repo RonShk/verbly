@@ -2,6 +2,7 @@ import * as functions from "firebase-functions/v1";
 import {streamGenerateSessionQuestions} from "./helpers/generateSessionQuestions";
 import {getModeConfig} from "../../core/sessionModes";
 import {ASSIGNMENTS_COLLECTION} from "../../core/assignmentRefs";
+import {hasAiDataSharingConsent} from "../../../../../utils/aiDataSharingConsent";
 
 const RUNTIME = {timeoutSeconds: 300, memory: "256MB" as const};
 
@@ -27,6 +28,14 @@ export const onAssignmentGenerationRequested = functions
     const type = after.type as string | undefined;
     const userId = after.userId as string | undefined;
     if (!type || !userId) return;
+
+    if (!await hasAiDataSharingConsent(userId)) {
+      await change.after.ref.update({
+        generationStatus: "failed",
+        generationError: "AI data sharing permission was withdrawn.",
+      });
+      return;
+    }
 
     const timezoneOffsetMinutes = typeof after.timezoneOffsetMinutes === "number" ? after.timezoneOffsetMinutes : 0;
     await streamGenerateSessionQuestions(getModeConfig(type), userId, change.after.ref, timezoneOffsetMinutes);

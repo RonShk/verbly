@@ -80,6 +80,7 @@ export const acceptStudentInvite = functions.https.onCall(async (_data, context)
     transaction.update(acceptedRef, {
       status: "accepted",
       acceptedAt,
+      studentUid,
     });
     transaction.set(rosterRef, {
       name: studentUser.displayName ?? studentEmail,
@@ -97,4 +98,3 @@ export const acceptStudentInvite = functions.https.onCall(async (_data, context)
 
   return {accepted: true, teacherUid: result.teacherUid};
 });
-

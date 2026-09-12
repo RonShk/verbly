@@ -7,6 +7,7 @@ import {getModeConfig} from "../../core/sessionModes";
 import {StreamingJsonArrayExtractor} from "../../core/streamingJsonArray";
 import {assignmentDocRef, questionDocRef} from "../../core/assignmentRefs";
 import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
+import {assertAiDataSharingConsent} from "../../../../../utils/aiDataSharingConsent";
 
 const SKIP_SENTINEL = "(skipped)";
 
@@ -27,6 +28,7 @@ export const generateSentencePracticeExplanation = functions.https.onCall(async 
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
   const userId = context.auth.uid;
+  await assertAiDataSharingConsent(userId);
   const assignmentId = data?.assignmentId;
   const questionIndex = data?.questionIndex;
   const useForeignCharacters = typeof data?.useForeignCharacters === "boolean" ? data.useForeignCharacters : true;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/user_session_provider.dart';
 import '../theme/app_colors.dart';
@@ -19,6 +21,7 @@ class StudentConnectionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasError = errorMessage != null;
+    final signedInEmail = ref.watch(firebaseUserProvider).value?.email;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -61,7 +64,7 @@ class StudentConnectionPage extends ConsumerWidget {
                         ? errorMessage!
                         : removed
                         ? 'You no longer have access to the student app. Contact your tutor if you think this was a mistake.'
-                        : 'Ask your tutor to invite the exact email address you used to sign in. We will connect your account automatically after the invitation is sent.',
+                        : 'Your tutor invitation must match your signed-in email address. We will connect your account automatically after the invitation is sent.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.navbarInactive,
@@ -69,7 +72,45 @@ class StudentConnectionPage extends ConsumerWidget {
                       height: 1.45,
                     ),
                   ),
+                  if (!hasError && signedInEmail != null) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      'Ask your tutor to invite this exact address${signedInEmail.endsWith('@privaterelay.appleid.com') ? ' (your Apple Hide My Email address)' : ''}:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.navbarInactive,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      signedInEmail,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: signedInEmail),
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Email copied.')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.copy_outlined, size: 17),
+                      label: const Text('Copy email'),
+                    ),
+                  ],
                   const SizedBox(height: 28),
+                  TextButton(
+                    onPressed: () => context.go('/profile'),
+                    child: const Text('Account settings'),
+                  ),
                   TextButton(
                     onPressed: () => ref.read(userSessionProvider).signOut(),
                     child: const Text('Sign out'),

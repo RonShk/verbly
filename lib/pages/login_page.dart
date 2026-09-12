@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/user_session_provider.dart';
 import '../services/auth/sign_in_method.dart';
 import '../theme/app_colors.dart';
+import '../widgets/legal_links.dart';
 
 /// App entry screen shown whenever no Firebase user is signed in.
 ///
@@ -56,21 +57,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 48),
-                ...signInMethods.map((method) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SignInMethodButton(
-                        signInMethod: method,
-                        isBusy: _busySignInMethodId == method.id,
-                        anyBusy: _busySignInMethodId != null,
-                        onTap: () => _signIn(method),
-                      ),
-                    )),
-                const SizedBox(height: 32),
-                Text(
-                  'By continuing you agree to our Terms of Service and Privacy Policy.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.navbarInactive, fontSize: 12),
+                ...signInMethods.map(
+                  (method) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _SignInMethodButton(
+                      signInMethod: method,
+                      isBusy: _busySignInMethodId == method.id,
+                      anyBusy: _busySignInMethodId != null,
+                      onTap: () => _signIn(method),
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 32),
+                const LegalLinks(introText: 'By continuing you agree to our'),
               ],
             ),
           ),
@@ -89,13 +88,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             color: AppColors.button.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(Icons.school_outlined, color: AppColors.blueHighlighted, size: 36),
+          child: const Icon(
+            Icons.school_outlined,
+            color: AppColors.blueHighlighted,
+            size: 36,
+          ),
         ),
         const SizedBox(height: 24),
         const Text(
           'Welcome to Verbly',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
         Text(
@@ -130,25 +137,40 @@ class _SignInMethodButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: signInMethod.brandBackgroundColor,
           foregroundColor: signInMethod.brandForegroundColor,
-          disabledBackgroundColor: signInMethod.brandBackgroundColor.withValues(alpha: 0.5),
+          disabledBackgroundColor: signInMethod.brandBackgroundColor.withValues(
+            alpha: 0.5,
+          ),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: isBusy
             ? SizedBox(
                 height: 22,
                 width: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: signInMethod.brandForegroundColor),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: signInMethod.brandForegroundColor,
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconTheme(
-                    data: IconThemeData(color: signInMethod.brandForegroundColor),
+                    data: IconThemeData(
+                      color: signInMethod.brandForegroundColor,
+                    ),
                     child: signInMethod.icon,
                   ),
                   const SizedBox(width: 10),
-                  Text(signInMethod.displayName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  Text(
+                    signInMethod.displayName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
       ),

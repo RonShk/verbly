@@ -6,6 +6,7 @@ import {assignmentDocRef} from "../../core/assignmentRefs";
 import {NO_VOCAB_STATUS} from "../../core/generationStatus";
 import {isDeckEmpty} from "../../../../vocab/deck/deckSize";
 import {consumeAiQuota} from "../../../../../utils/aiRateLimit";
+import {assertAiDataSharingConsent} from "../../../../../utils/aiDataSharingConsent";
 
 /**
  * Fast, idempotent entry point for sentence-practice generation
@@ -28,6 +29,7 @@ export const enqueueSessionGeneration = functions.https.onCall(async (data, cont
     throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
   }
   const userId = context.auth.uid;
+  await assertAiDataSharingConsent(userId);
   const assignmentId = data?.assignmentId;
   if (!assignmentId || typeof assignmentId !== "string") {
     throw new functions.https.HttpsError("invalid-argument", "assignmentId is required.");

@@ -1,10 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StudentProfile {
-  const StudentProfile({required this.teacherId, required this.inviteAccepted});
+  const StudentProfile({
+    required this.teacherId,
+    required this.inviteAccepted,
+    required this.aiDataSharingConsent,
+  });
 
   final String? teacherId;
   final bool inviteAccepted;
+  final bool aiDataSharingConsent;
 
   /// A teacherId can exist on legacy/pending records. The app should only
   /// unlock the dashboard after the invite redemption transaction records its
@@ -21,13 +26,18 @@ class StudentProfile {
     return StudentProfile(
       teacherId: teacherId is String && teacherId.isNotEmpty ? teacherId : null,
       inviteAccepted: inviteAccepted,
+      aiDataSharingConsent: snapshot.data()?['aiDataSharingConsentAt'] != null,
     );
   }
 }
 
 Future<StudentProfile> loadStudentProfile(String? uid) async {
   if (uid == null) {
-    return const StudentProfile(teacherId: null, inviteAccepted: false);
+    return const StudentProfile(
+      teacherId: null,
+      inviteAccepted: false,
+      aiDataSharingConsent: false,
+    );
   }
   final snapshot = await FirebaseFirestore.instance
       .collection('students')
@@ -39,7 +49,11 @@ Future<StudentProfile> loadStudentProfile(String? uid) async {
 Stream<StudentProfile> watchStudentProfile(String? uid) {
   if (uid == null) {
     return Stream.value(
-      const StudentProfile(teacherId: null, inviteAccepted: false),
+      const StudentProfile(
+        teacherId: null,
+        inviteAccepted: false,
+        aiDataSharingConsent: false,
+      ),
     );
   }
   return FirebaseFirestore.instance
@@ -47,4 +61,12 @@ Stream<StudentProfile> watchStudentProfile(String? uid) {
       .doc(uid)
       .snapshots()
       .map(StudentProfile.fromSnapshot);
+}
+
+Future<void> setAiDataSharingConsent(String uid, bool consented) async {
+  await FirebaseFirestore.instance.collection('students').doc(uid).update({
+    'aiDataSharingConsentAt': consented
+        ? FieldValue.serverTimestamp()
+        : FieldValue.delete(),
+  });
 }

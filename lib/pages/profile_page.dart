@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/user_session_provider.dart';
 import '../services/auth/delete_account_service.dart' as account_service;
+import '../services/auth/student_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/legal_links.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -16,6 +18,25 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _deleting = false;
+  bool _updatingConsent = false;
+
+  Future<void> _setAiConsent(bool consented) async {
+    final uid = ref.read(firebaseUserProvider).value?.uid;
+    if (uid == null) return;
+    setState(() => _updatingConsent = true);
+    try {
+      await setAiDataSharingConsent(uid, consented);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not update your choice. Try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingConsent = false);
+    }
+  }
 
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showDialog<bool>(
@@ -74,6 +95,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final displayName = user?.displayName?.trim().isNotEmpty == true
         ? user!.displayName!.trim()
         : 'Signed in';
+    final profile = ref.watch(studentProfileProvider).value;
+    final hasAiConsent = profile?.aiDataSharingConsent ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -81,96 +104,116 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _Avatar(
-                  photoUrl: _profilePhotoUrl(user),
-                  displayName: user?.displayName,
-                  email: email,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _Avatar(
+                    photoUrl: _profilePhotoUrl(user),
+                    displayName: user?.displayName,
+                    email: email,
                   ),
-                ),
-                if (email != null && email.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
                   Text(
-                    email,
-                    style: TextStyle(
-                      color: AppColors.navbarInactive,
-                      fontSize: 14,
+                    displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (email != null && email.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      style: TextStyle(
+                        color: AppColors.navbarInactive,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  SwitchListTile(
+                    value: hasAiConsent,
+                    onChanged: _updatingConsent ? null : _setAiConsent,
+                    contentPadding: EdgeInsets.zero,
+                    activeThumbColor: AppColors.blueHighlighted,
+                    title: const Text(
+                      'AI data sharing',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: Text(
+                      'Share practice answers and assignment content with Google Gemini for AI questions and feedback.',
+                      style: TextStyle(color: AppColors.navbarInactive),
+                    ),
+                  ),
+                  const LegalLinks(),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonal(
+                      onPressed: _deleting
+                          ? null
+                          : () async => ref.read(userSessionProvider).signOut(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.danger.withValues(
+                          alpha: 0.15,
+                        ),
+                        foregroundColor: AppColors.danger,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.logout, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Sign out',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _deleting ? null : _confirmDeleteAccount,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: BorderSide(
+                          color: AppColors.danger.withValues(alpha: 0.65),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _deleting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.delete_outline, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Delete account',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonal(
-                    onPressed: _deleting
-                        ? null
-                        : () async => ref.read(userSessionProvider).signOut(),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.danger.withValues(alpha: 0.15),
-                      foregroundColor: AppColors.danger,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.logout, size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Sign out',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _deleting ? null : _confirmDeleteAccount,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: BorderSide(
-                        color: AppColors.danger.withValues(alpha: 0.65),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _deleting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.delete_outline, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Delete account',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

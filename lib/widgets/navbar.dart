@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../pages/student_onboarding_page.dart';
+import '../pages/ai_consent_page.dart';
 import '../providers/user_session_provider.dart';
 import '../theme/app_colors.dart';
 
@@ -32,6 +33,11 @@ class MainShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(studentConnectionProvider);
     final profile = ref.watch(studentProfileProvider);
+    // Account settings must remain available even if invitation lookup fails,
+    // so anyone can sign out, withdraw AI consent, or delete their account.
+    if (currentPath == '/profile') {
+      return _buildShell(context, currentPath, child);
+    }
     return connection.when(
       loading: () => const Scaffold(
         backgroundColor: AppColors.background,
@@ -49,6 +55,19 @@ class MainShell extends ConsumerWidget {
         }
         if (status == StudentConnectionStatus.noInvitation) {
           return const StudentConnectionPage();
+        }
+        if (currentProfile == null) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.blueHighlighted,
+              ),
+            ),
+          );
+        }
+        if (!currentProfile.aiDataSharingConsent) {
+          return const AiConsentPage();
         }
         return _buildShell(context, currentPath, child);
       },

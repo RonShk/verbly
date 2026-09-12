@@ -20,6 +20,29 @@ export const deleteAccount = functions.runWith({timeoutSeconds: 300, memory: "25
 
   const uid = context.auth.uid;
   const db = admin.firestore();
+  const user = await admin.auth().getUser(uid);
+  const studentSnapshot = await db.doc(`students/${uid}`).get();
+  const teacherId = studentSnapshot.data()?.teacherId;
+
+  if (typeof teacherId === "string" && teacherId.length > 0) {
+    await db.recursiveDelete(db.doc(`teachers/${teacherId}/students/${uid}`));
+  }
+
+  const invitationSnapshots = await Promise.all([
+    db.collection("studentInvites").where("studentUid", "==", uid).get(),
+    ...(user.email ? [
+      db.collection("studentInvites")
+        .where("email", "==", user.email.trim().toLowerCase())
+        .get(),
+    ] : []),
+  ]);
+  const invitationRefs = new Map<string, FirebaseFirestore.DocumentReference>();
+  for (const snapshot of invitationSnapshots) {
+    for (const doc of snapshot.docs) invitationRefs.set(doc.ref.path, doc.ref);
+  }
+  for (const ref of invitationRefs.values()) {
+    await db.recursiveDelete(ref);
+  }
 
   // recursiveDelete also removes subcollections, including vocab cards and
   // streamed assignment questions.
